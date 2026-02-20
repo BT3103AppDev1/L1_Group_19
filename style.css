@@ -1,0 +1,166 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #f6f7fb;
+  color: #122033;
+}
+
+/* ===== Header (FIXED + CENTERED) ===== */
+.topbar {
+  background: white;
+  border-bottom: 1px solid #e7e9f1;
+  padding: 18px 18px;
+
+  /* Center the header content */
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.topbar h1 {
+  font-size: 22px;        /* slightly bigger */
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+}
+
+.subtitle {
+  margin: 6px 0 0 0;
+  font-size: 14px;
+  color: #5a667a;
+  max-width: 720px;       /* prevents the subtitle from stretching too wide */
+}
+
+/* ===== Main Layout ===== */
+.content {
+  padding: 12px;
+}
+
+/* ===== Map Card ===== */
+#map {
+  width: 100%;
+  height: calc(100vh - 110px); /* more accurate now that header is taller */
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #e7e9f1;
+  background: #dfe6f3;
+}
+
+/* ===== Drawer (FR2) ===== */
+.drawer {
+  position: fixed;
+  right: 18px;
+
+  /* Bring it down so it visually belongs to the map, not the header */
+  top: 118px;
+
+  width: min(360px, calc(100vw - 36px));
+  background: #fff;
+  border: 1px solid #e7e9f1;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+  overflow: hidden;
+
+  transform: translateY(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: 180ms ease;
+
+  z-index: 9999;
+}
+
+.drawer.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef0f6;
+}
+
+.drawer-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.drawer-close {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.drawer-body {
+  padding: 12px 14px;
+}
+
+.drawer-row {
+  margin: 0;
+  font-size: 14px;
+}
+
+.drawer-row .label {
+  display: inline-block;
+  min-width: 44px;
+  color: #5a667a;
+  font-weight: 600;
+}
+
+.drawer-hint {
+  margin: 0;
+  color: #5a667a;
+  font-size: 14px;
+}
+
+/* Mobile: bottom sheet */
+@media (max-width: 640px) {
+  #map {
+    height: calc(100vh - 120px);
+  }
+
+  .drawer {
+    left: 14px;
+    right: 14px;
+    top: auto;
+    bottom: 14px;
+    width: auto;
+  }
+}
+
+.legend {
+  background: white;
+  border: 1px solid #e7e9f1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+  font-size: 13px;
+  color: #122033;
+}
+
+.legend-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.15);
+}

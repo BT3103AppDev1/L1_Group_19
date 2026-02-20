@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Campus Noise Map (FR1)</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>Campus Noise Map</h1>
+      <p class="subtitle">Interactive map with ≥10 study locations</p>
+    </header>
+
+    <main class="content">
+  <div id="map" aria-label="Campus map"></div>
+
+  <!-- FR2: Location Details Drawer / Bottom Sheet -->
+  <aside class="drawer" :class="{ open: !!selectedLocation }" aria-label="Location details">
+    <div class="drawer-header">
+      <h2 class="drawer-title">
+        {{ selectedLocation ? selectedLocation.name : "Location details" }}
+      </h2>
+      <button class="drawer-close" @click="selectedLocation = null" aria-label="Close">✕</button>
+    </div>
+
+    <div class="drawer-body" v-if="selectedLocation">
+      <p class="drawer-row"><span class="label">Type</span> {{ selectedLocation.type }}</p>
+      <p class="drawer-row"><span class="label">Noise</span> {{ selectedLocation.noiseDb }} dB</p>
+      <p class="drawer-row"><span class="label">Level</span> {{ noiseLabel(selectedLocation.noiseDb) }}</p>
+    </div>    
+
+    <div class="drawer-body" v-else>
+      <p class="drawer-hint">Click a marker to see details.</p>
+    </div>
+  </aside>
+</main>
+
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script src="./app.js"></script>
+</body>
+</html>
