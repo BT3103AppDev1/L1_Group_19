@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Campus Noise Map (FR1)</title>
+  <title>Campus Noise Map</title>
 
   <link
     rel="stylesheet"
@@ -22,39 +22,53 @@
     </header>
 
     <main class="content">
-  <div id="map" aria-label="Campus map"></div>
+      <div id="map" aria-label="Campus map"></div>
 
-  <!-- FR2: Location Details Drawer / Bottom Sheet -->
-  <aside class="drawer" :class="{ open: !!selectedLocation }" aria-label="Location details">
-    <div class="drawer-header">
-      <h2 class="drawer-title">
-        {{ selectedLocation ? selectedLocation.name : "Location details" }}
-      </h2>
-      <button class="drawer-close" @click="selectedLocation = null" aria-label="Close">✕</button>
-    </div>
+      <aside class="drawer" :class="{ open: !!selectedLocation }" aria-label="Location details">
+        <div class="drawer-header">
+          <h2 class="drawer-title">
+            {{ selectedLocation ? selectedLocation.name : "Location details" }}
+          </h2>
+          <button class="drawer-close" @click="selectedLocation = null" aria-label="Close">✕</button>
+        </div>
 
-    <div class="drawer-body" v-if="selectedLocation">
-      <p class="drawer-row"><span class="label">Type</span> {{ selectedLocation.type }}</p>
-      <p class="drawer-row"><span class="label">Noise</span> {{ selectedLocation.noiseDb }} dB</p>
-      <p class="drawer-row"><span class="label">Level</span> {{ noiseLabel(selectedLocation.noiseDb) }}</p>
-    </div>    
+        <div class="drawer-body" v-if="selectedLocation">
+          <p class="drawer-row"><span class="label">Type:</span> {{ selectedLocation.type }}</p>
+          <p class="drawer-row"><span class="label">Noise:</span> {{ selectedLocation.noiseDb }} dB</p>
+          <p class="drawer-row"><span class="label">Level:</span> {{ noiseLabel(selectedLocation.noiseDb) }}</p>
 
-    <div class="drawer-body" v-else>
-      <p class="drawer-hint">Click a marker to see details.</p>
-    </div>
-  </aside>
-</main>
+          <hr class="drawer-divider" />
+          <div class="rating-section">
+            <h3 class="rating-title">Rate Current Noise</h3>
+            <select v-model="userRating" class="rating-select">
+              <option :value="null" disabled>Select level...</option>
+              <option value="1">1 - Very Quiet</option>
+              <option value="2">2 - Quiet</option>
+              <option value="3">3 - Moderate</option>
+              <option value="4">4 - Noisy</option>
+              <option value="5">5 - Very Loud</option>
+            </select>
+            
+            <button @click="submitRating" :disabled="!userRating" class="submit-btn">
+              Submit Rating
+            </button>
+            <p v-if="showSuccess" class="success-msg">✅ Rating submitted!</p>
+          </div>
+        </div>    
 
+        <div class="drawer-body" v-else>
+          <p class="drawer-hint">Click a marker to see details.</p>
+        </div>
+      </aside>
+    </main>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-
   <script src="./app.js"></script>
 </body>
 </html>
