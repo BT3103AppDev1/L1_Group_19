@@ -8,6 +8,11 @@ createApp({
       selectedLocation: null,
       legendControl: null,
 
+      // FR5 State variables
+      userRating: null,
+      showSuccess: false,
+      submissions: [],
+
       // sample locations on campus
       locations: [
         { id: "loc1", name: "CLB (Central Library)", type: "Library", lat: 1.29662, lng: 103.77368 },
@@ -28,7 +33,7 @@ createApp({
     // attach a noise value to each location (mocked for now)
     this.locations = this.locations.map((l) => ({
       ...l,
-      noiseDb: this.mockNoiseDb(l.id), // e.g., 35–85 dB
+      noiseDb: this.mockNoiseDb(l.id),
     }));
 
     this.initMap();
@@ -36,9 +41,16 @@ createApp({
     this.addLegend();
   },
 
+  watch: {
+    // Reset rating UI if the user clicks a different map marker
+    selectedLocation() {
+      this.userRating = null;
+      this.showSuccess = false;
+    }
+  },
+
   methods: {
     initMap() {
-      // Center near Kent Ridge
       const center = [1.2966, 103.7764];
 
       this.map = L.map("map", { zoomControl: true }).setView(center, 15);
@@ -51,7 +63,6 @@ createApp({
       this.markersLayer = L.layerGroup().addTo(this.map);
     },
 
-    // ---- Noise helpers ----
     mockNoiseDb(id) {
       let hash = 0;
       for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
@@ -60,7 +71,6 @@ createApp({
     },
 
     noiseColor(db) {
-      // quiet -> loud
       if (db <= 40) return "#2ecc71";     // green
       if (db <= 55) return "#f1c40f";     // yellow
       if (db <= 70) return "#e67e22";     // orange
@@ -103,7 +113,6 @@ createApp({
     },
 
     addLegend() {
-      // remove old legend if re-added
       if (this.legendControl) this.legendControl.remove();
 
       this.legendControl = L.control({ position: "bottomleft" });
@@ -134,5 +143,27 @@ createApp({
 
       this.legendControl.addTo(this.map);
     },
+
+    // FR5 Logic
+    submitRating() {
+      if (!this.userRating) return;
+
+      const newSubmission = {
+        locationId: this.selectedLocation.id,
+        rating: parseInt(this.userRating),
+        timestamp: Date.now()
+      };
+
+      this.submissions.push(newSubmission);
+      console.log("Submissions array updated:", this.submissions);
+
+      this.showSuccess = true;
+      this.userRating = null; 
+
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        this.showSuccess = false;
+      }, 3000);
+    }
   },
 }).mount("#app");
