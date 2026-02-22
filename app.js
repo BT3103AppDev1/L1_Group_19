@@ -30,6 +30,8 @@ createApp({
   },
 
   mounted() {
+    this.loadSubmissions();
+
     // attach a noise value to each location (mocked for now)
     this.locations = this.locations.map((l) => ({
       ...l,
@@ -143,18 +145,71 @@ createApp({
 
       this.legendControl.addTo(this.map);
     },
+    // FR6 logic
+    loadSubmissions() {
+      try {
+        const raw = localStorage.getItem("submissions");
+        this.submissions = raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        console.error("Failed to load submissions from localStorage:", err);
+        this.submissions = [];
+      }
+    },
+
+    saveSubmissions() {
+      try {
+        localStorage.setItem("submissions", JSON.stringify(this.submissions));
+      } catch (err) {
+        console.error("Failed to save submissions to localStorage:", err);
+      }
+    },
+
+    getLatestSubmission(locationId) {
+      const locationSubs = this.submissions.filter(s => s.locationId === locationId);
+      if (!locationSubs.length) return null;
+
+      return locationSubs.reduce((latest, curr) =>
+        curr.createdAt > latest.createdAt ? curr : latest
+      );
+    },
+
+  formatRelativeTime(timestamp) {
+    if (!timestamp) return "No ratings yet";
+
+    const diffMs = Date.now() - timestamp;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHr = Math.floor(diffMin / 60);
+   const diffDay = Math.floor(diffHr / 24);
+
+    if (diffSec < 10) return "just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    if (diffMin < 60) return `${diffMin} min ago`;
+    if (diffHr < 24) return `${diffHr} hr ago`;
+    if (diffDay < 7) return `${diffDay} day${diffDay > 1 ? "s" : ""} ago`;
+
+    return new Date(timestamp).toLocaleString();
+  },
+
+  lastUpdatedText(locationId) {
+    const latest = this.getLatestSubmission(locationId);
+    if (!latest) return "No ratings yet";
+    return this.formatRelativeTime(latest.createdAt);
+  },
 
     // FR5 Logic
     submitRating() {
-      if (!this.userRating) return;
+      if (!this.userRating || !this.selectedLocation) return;
 
       const newSubmission = {
         locationId: this.selectedLocation.id,
-        rating: parseInt(this.userRating),
-        timestamp: Date.now()
+        rating: parseInt(this.userRating, 10),
+        createdAt: Date.now()
       };
 
       this.submissions.push(newSubmission);
+      this.saveSubmissions();
+      
       console.log("Submissions array updated:", this.submissions);
 
       this.showSuccess = true;

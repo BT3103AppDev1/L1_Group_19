@@ -36,7 +36,8 @@
           <p class="drawer-row"><span class="label">Type:</span> {{ selectedLocation.type }}</p>
           <p class="drawer-row"><span class="label">Noise:</span> {{ selectedLocation.noiseDb }} dB</p>
           <p class="drawer-row"><span class="label">Level:</span> {{ noiseLabel(selectedLocation.noiseDb) }}</p>
-
+          <p class="drawer-row"><span class="label">Last updated:</span> {{ lastUpdatedText(selectedLocation.id) }}</p>
+          
           <hr class="drawer-divider" />
           <div class="rating-section">
             <h3 class="rating-title">Rate Current Noise</h3>
