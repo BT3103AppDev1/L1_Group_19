@@ -10,6 +10,7 @@ createApp({
 
       // FR5 State variables
       userRating: null,
+      userComment: "",
       showSuccess: false,
       submissions: [],
 
@@ -48,6 +49,7 @@ createApp({
     selectedLocation() {
       this.userRating = null;
       this.showSuccess = false;
+      this.userComment = "";
     }
   },
 
@@ -173,6 +175,11 @@ createApp({
       );
     },
 
+  getLatestComment(locationId) {
+    const latest = this.getLatestSubmission(locationId);
+    return latest ? latest.comment : null;
+  },
+
   formatRelativeTime(timestamp) {
     if (!timestamp) return "No ratings yet";
 
@@ -204,6 +211,7 @@ createApp({
       const newSubmission = {
         locationId: this.selectedLocation.id,
         rating: parseInt(this.userRating, 10),
+        comment: this.userComment.trim(),
         createdAt: Date.now()
       };
 
@@ -214,6 +222,7 @@ createApp({
 
       this.showSuccess = true;
       this.userRating = null; 
+      this.userComment = "";
 
       // Hide success message after 3 seconds
       setTimeout(() => {
