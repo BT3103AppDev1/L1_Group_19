@@ -37,6 +37,7 @@
           <p class="drawer-row"><span class="label">Noise:</span> {{ selectedLocation.noiseDb }} dB</p>
           <p class="drawer-row"><span class="label">Level:</span> {{ noiseLabel(selectedLocation.noiseDb) }}</p>
           <p class="drawer-row"><span class="label">Last updated:</span> {{ lastUpdatedText(selectedLocation.id) }}</p>
+          <p class="drawer-row"><span class="label">Comment:</span> {{ getLatestComment(selectedLocation.id) || "No comment provided." }}</p>
           
           <hr class="drawer-divider" />
           <div class="rating-section">
@@ -50,6 +51,15 @@
               <option value="5">5 - Very Loud</option>
             </select>
             
+            <!-- US7: Comment Input -->
+            <textarea
+              v-model="userComment"
+              maxlength="140"
+              class="comment-input"
+              placeholder="Optional comment (max 140 chars)...">
+            </textarea>
+            <small>{{ userComment.length }}/140</small>
+
             <button @click="submitRating" :disabled="!userRating" class="submit-btn">
               Submit Rating
             </button>
