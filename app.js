@@ -7,6 +7,7 @@ createApp({
       markersLayer: null,
       selectedLocation: null,
       legendControl: null,
+      noiseFilter: "all",
 
       // FR5 State variables
       userRating: null,
@@ -50,6 +51,10 @@ createApp({
       this.userRating = null;
       this.showSuccess = false;
       this.userComment = "";
+    },
+
+    noiseFilter() {
+      this.renderMarkers();
     }
   },
 
@@ -90,30 +95,43 @@ createApp({
 
     renderMarkers() {
       this.markersLayer.clearLayers();
-
-      this.locations.forEach((loc) => {
+    
+      const visibleLocations = this.locations.filter((loc) => {
+        const avgRating = this.getAverageRating(loc.id);
+        return this.matchesNoiseFilter(avgRating);
+      });
+    
+      visibleLocations.forEach((loc) => {
+        const avgRating = this.getAverageRating(loc.id);
+        const submissionCount = this.getSubmissionsByLocation(loc.id).length;
+    
         const marker = L.circleMarker([loc.lat, loc.lng], {
           radius: 10,
           weight: 1,
           color: "#1f2a44",
-          fillColor: this.noiseColor(loc.noiseDb),
+          fillColor: this.ratingColor(avgRating),
           fillOpacity: 0.9,
         });
-
+    
         marker.on("click", () => {
           this.selectedLocation = loc;
         });
-
+    
         marker.bindTooltip(
-          `<strong>${loc.name}</strong><br>${loc.noiseDb} dB (${this.noiseLabel(loc.noiseDb)})`,
+          `<strong>${loc.name}</strong><br>
+           Average rating: ${avgRating === null ? "N/A" : avgRating.toFixed(1)}
+           (${this.ratingLabel(avgRating)})<br>
+           Submissions: ${submissionCount}`,
           { direction: "top", offset: [0, -8], sticky: true }
         );
-
+    
         marker.addTo(this.markersLayer);
       });
-
-      const bounds = L.latLngBounds(this.locations.map((l) => [l.lat, l.lng]));
-      this.map.fitBounds(bounds, { padding: [30, 30] });
+    
+      if (visibleLocations.length) {
+        const bounds = L.latLngBounds(visibleLocations.map((l) => [l.lat, l.lng]));
+        this.map.fitBounds(bounds, { padding: [30, 30] });
+      }
     },
 
     addLegend() {
@@ -217,6 +235,7 @@ createApp({
 
       this.submissions.push(newSubmission);
       this.saveSubmissions();
+      renderMarkers();
       
       console.log("Submissions array updated:", this.submissions);
 
@@ -228,6 +247,47 @@ createApp({
       setTimeout(() => {
         this.showSuccess = false;
       }, 3000);
-    }
+    },
+
+    getSubmissionsByLocation(locationId) {
+      return this.submissions.filter((s) => s.locationId === locationId);
+    },
+    
+    getAverageRating(locationId) {
+      const locationSubs = this.getSubmissionsByLocation(locationId);
+      if (!locationSubs.length) return null;
+    
+      const total = locationSubs.reduce((sum, sub) => sum + sub.rating, 0);
+      return total / locationSubs.length;
+    },
+    
+    ratingColor(avgRating) {
+      if (avgRating === null) return "#95a5a6";
+      if (avgRating <= 2) return "#2ecc71";
+      if (avgRating <= 3.5) return "#f1c40f";
+      if (avgRating <= 4.5) return "#e67e22";
+      return "#e74c3c";
+    },
+    
+    ratingLabel(avgRating) {
+      if (avgRating === null) return "No ratings yet";
+      if (avgRating <= 2) return "Quiet";
+      if (avgRating <= 3.5) return "Moderate";
+      if (avgRating <= 4.5) return "Noisy";
+      return "Very loud";
+    },
+    
+    matchesNoiseFilter(avgRating) {
+      if (this.noiseFilter === "all") return true;
+      if (avgRating === null) return false;
+    
+      if (this.noiseFilter === "quiet") return avgRating <= 2;
+      if (this.noiseFilter === "moderate") return avgRating > 2 && avgRating <= 3.5;
+      if (this.noiseFilter === "noisy") return avgRating > 3.5 && avgRating <= 4.5;
+      if (this.noiseFilter === "very-loud") return avgRating > 4.5;
+    
+      return true;
+    },
+
   },
 }).mount("#app");

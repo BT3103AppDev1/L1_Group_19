@@ -223,3 +223,29 @@ body {
   font-size: 14px;
   width: 100%;
 }
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #e7e9f1;
+  border-radius: 12px;
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #122033;
+  margin-right: 8px;
+}
+
+.filter-select {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
