@@ -1,42 +1,40 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-
+import L from 'leaflet'
 const mapElement = ref(null)
 const map = ref(null)
 const markersLayer = ref(null)
-const legendControl = ref(null)
 const selectedLocation = ref(null)
+const legendControl = ref(null)
 
-// FR5 State variables
 const userRating = ref(null)
+const userComment = ref('')
 const showSuccess = ref(false)
 const submissions = ref([])
 
-// sample locations on campus
 const locations = ref([
-  { id: 'loc1', name: 'CLB (Central Library)', type: 'Library', lat: 1.29662, lng: 103.77368, noiseDb: 0 },
-  { id: 'loc2', name: 'UTown ERC', type: 'Study Room', lat: 1.30449, lng: 103.77206, noiseDb: 0 },
-  { id: 'loc3', name: 'UTown Starbucks', type: 'Cafe', lat: 1.30427, lng: 103.77313, noiseDb: 0 },
-  { id: 'loc4', name: 'COM1 Atrium', type: 'Study Area', lat: 1.2959, lng: 103.77355, noiseDb: 0 },
-  { id: 'loc5', name: 'COM2 Level 2', type: 'Study Area', lat: 1.29494, lng: 103.77344, noiseDb: 0 },
-  { id: 'loc6', name: 'BIZ Library', type: 'Library', lat: 1.2931, lng: 103.7755, noiseDb: 0 },
-  { id: 'loc7', name: 'Science Library', type: 'Library', lat: 1.29695, lng: 103.7801, noiseDb: 0 },
-  { id: 'loc8', name: 'YIH Study Corners', type: 'Study Area', lat: 1.2982, lng: 103.7746, noiseDb: 0 },
-  { id: 'loc9', name: 'Engin Study Zone', type: 'Study Area', lat: 1.2988, lng: 103.7701, noiseDb: 0 },
-  { id: 'loc10', name: 'PGP Lounge', type: 'Study Area', lat: 1.2921, lng: 103.7809, noiseDb: 0 },
+  { id: 'loc1', name: 'CLB (Central Library)', type: 'Library', lat: 1.29662, lng: 103.77368 },
+  { id: 'loc2', name: 'UTown ERC', type: 'Study Room', lat: 1.30449, lng: 103.77206 },
+  { id: 'loc3', name: 'UTown Starbucks', type: 'Café', lat: 1.30427, lng: 103.77313 },
+  { id: 'loc4', name: 'COM1 Atrium', type: 'Study Area', lat: 1.2959, lng: 103.77355 },
+  { id: 'loc5', name: 'COM2 Level 2', type: 'Study Area', lat: 1.29494, lng: 103.77344 },
+  { id: 'loc6', name: 'BIZ Library', type: 'Library', lat: 1.2931, lng: 103.7755 },
+  { id: 'loc7', name: 'Science Library', type: 'Library', lat: 1.29695, lng: 103.7801 },
+  { id: 'loc8', name: 'YIH Study Corners', type: 'Study Area', lat: 1.2982, lng: 103.7746 },
+  { id: 'loc9', name: 'Engin Study Zone', type: 'Study Area', lat: 1.2988, lng: 103.7701 },
+  { id: 'loc10', name: 'PGP Lounge', type: 'Study Area', lat: 1.2921, lng: 103.7809 },
 ])
 
-// Reset rating UI if the user clicks a different map marker
 watch(selectedLocation, () => {
   userRating.value = null
   showSuccess.value = false
+  userComment.value = ''
 })
 
 function initMap() {
-  const L = window.L
   const center = [1.2966, 103.7764]
 
-  if (!mapElement.value || !L) return
+  if (!mapElement.value) return
 
   map.value = L.map(mapElement.value, { zoomControl: true }).setView(center, 15)
 
@@ -48,41 +46,48 @@ function initMap() {
   markersLayer.value = L.layerGroup().addTo(map.value)
 }
 
-function mockNoiseDb(id) {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  const min = 35
-  const max = 85
-  return Math.round(min + ((hash % 1000) / 1000) * (max - min))
+function getSubmissionsByLocation(locationId) {
+  return submissions.value.filter((s) => s.locationId === locationId)
 }
 
-function noiseColor(db) {
-  if (db <= 40) return '#2ecc71' // green
-  if (db <= 55) return '#f1c40f' // yellow
-  if (db <= 70) return '#e67e22' // orange
-  return '#e74c3c' // red
+function getAverageRating(locationId) {
+  const locationSubs = getSubmissionsByLocation(locationId)
+  if (!locationSubs.length) return null
+
+  const total = locationSubs.reduce((sum, sub) => sum + sub.rating, 0)
+  return total / locationSubs.length
 }
 
-function noiseLabel(db) {
-  if (db <= 40) return 'Quiet'
-  if (db <= 55) return 'Moderate'
-  if (db <= 70) return 'Noisy'
+function ratingColor(avgRating) {
+  if (avgRating === null) return '#95a5a6'
+  if (avgRating <= 2) return '#2ecc71'
+  if (avgRating <= 3.5) return '#f1c40f'
+  if (avgRating <= 4.5) return '#e67e22'
+  return '#e74c3c'
+}
+
+function ratingLabel(avgRating) {
+  if (avgRating === null) return 'No ratings yet'
+  if (avgRating <= 2) return 'Quiet'
+  if (avgRating <= 3.5) return 'Moderate'
+  if (avgRating <= 4.5) return 'Noisy'
   return 'Very loud'
 }
 
 function renderMarkers() {
-  const L = window.L
-
-  if (!markersLayer.value || !map.value || !L) return
+  if (!markersLayer.value || !map.value) return
 
   markersLayer.value.clearLayers()
 
   locations.value.forEach((loc) => {
+    const avgRating = getAverageRating(loc.id)
+    const submissionCount = getSubmissionsByLocation(loc.id).length
+
     const marker = L.circleMarker([loc.lat, loc.lng], {
       radius: 10,
       weight: 1,
       color: '#1f2a44',
-      fillColor: noiseColor(loc.noiseDb),
+      fillColor: ratingColor(avgRating),
       fillOpacity: 0.9,
     })
 
@@ -91,43 +96,45 @@ function renderMarkers() {
     })
 
     marker.bindTooltip(
-      `<strong>${loc.name}</strong><br>${loc.noiseDb} dB (${noiseLabel(loc.noiseDb)})`,
+      `<strong>${loc.name}</strong><br>
+       Average rating: ${avgRating === null ? 'N/A' : avgRating.toFixed(1)} 
+       (${ratingLabel(avgRating)})<br>
+       Submissions: ${submissionCount}`,
       { direction: 'top', offset: [0, -8], sticky: true },
     )
 
     marker.addTo(markersLayer.value)
   })
 
-  const bounds = L.latLngBounds(locations.value.map((loc) => [loc.lat, loc.lng]))
+  const bounds = L.latLngBounds(locations.value.map((l) => [l.lat, l.lng]))
   map.value.fitBounds(bounds, { padding: [30, 30] })
 }
 
 function addLegend() {
-  const L = window.L
-
-  if (!map.value || !L) return
   if (legendControl.value) legendControl.value.remove()
+  if (!map.value) return
 
   legendControl.value = L.control({ position: 'bottomleft' })
 
   legendControl.value.onAdd = () => {
     const div = L.DomUtil.create('div', 'legend')
     const stops = [
-      { label: '≤ 40 dB (Quiet)', db: 40 },
-      { label: '41–55 dB (Moderate)', db: 55 },
-      { label: '56–70 dB (Noisy)', db: 70 },
-      { label: '≥ 71 dB (Very loud)', db: 999 },
+      { label: 'No ratings yet', color: '#95a5a6' },
+      { label: '1.0–2.0 (Quiet)', color: '#2ecc71' },
+      { label: '2.1–3.5 (Moderate)', color: '#f1c40f' },
+      { label: '3.6–4.5 (Noisy)', color: '#e67e22' },
+      { label: '4.6–5.0 (Very loud)', color: '#e74c3c' },
     ]
 
     div.innerHTML = `
-      <div class="legend-title">Noise level</div>
+      <div class="legend-title">Average noise rating</div>
       ${stops
         .map(
-          (stop) => `
-          <div class="legend-row">
-            <span class="legend-swatch" style="background:${noiseColor(stop.db)}"></span>
-            <span>${stop.label}</span>
-          </div>`,
+          (s) => `
+            <div class="legend-row">
+              <span class="legend-swatch" style="background:${s.color}"></span>
+              <span>${s.label}</span>
+            </div>`,
         )
         .join('')}
     `
@@ -137,13 +144,12 @@ function addLegend() {
   legendControl.value.addTo(map.value)
 }
 
-// FR6 logic
 function loadSubmissions() {
   try {
     const raw = localStorage.getItem('submissions')
     submissions.value = raw ? JSON.parse(raw) : []
-  } catch (error) {
-    console.error('Failed to load submissions from localStorage:', error)
+  } catch (err) {
+    console.error('Failed to load submissions from localStorage:', err)
     submissions.value = []
   }
 }
@@ -151,18 +157,23 @@ function loadSubmissions() {
 function saveSubmissions() {
   try {
     localStorage.setItem('submissions', JSON.stringify(submissions.value))
-  } catch (error) {
-    console.error('Failed to save submissions to localStorage:', error)
+  } catch (err) {
+    console.error('Failed to save submissions to localStorage:', err)
   }
 }
 
 function getLatestSubmission(locationId) {
-  const locationSubs = submissions.value.filter((submission) => submission.locationId === locationId)
+  const locationSubs = submissions.value.filter((s) => s.locationId === locationId)
   if (!locationSubs.length) return null
 
-  return locationSubs.reduce((latest, current) =>
-    current.createdAt > latest.createdAt ? current : latest,
+  return locationSubs.reduce((latest, curr) =>
+    curr.createdAt > latest.createdAt ? curr : latest,
   )
+}
+
+function getLatestComment(locationId) {
+  const latest = getLatestSubmission(locationId)
+  return latest ? latest.comment : null
 }
 
 function formatRelativeTime(timestamp) {
@@ -189,37 +200,31 @@ function lastUpdatedText(locationId) {
   return formatRelativeTime(latest.createdAt)
 }
 
-// FR5 Logic
 function submitRating() {
   if (!userRating.value || !selectedLocation.value) return
 
   const newSubmission = {
     locationId: selectedLocation.value.id,
-    rating: Number.parseInt(userRating.value, 10),
+    rating: parseInt(userRating.value, 10),
+    comment: userComment.value.trim(),
     createdAt: Date.now(),
   }
 
   submissions.value.push(newSubmission)
   saveSubmissions()
+  renderMarkers()
 
   showSuccess.value = true
   userRating.value = null
+  userComment.value = ''
 
-  // Hide success message after 3 seconds
-  window.setTimeout(() => {
+  setTimeout(() => {
     showSuccess.value = false
   }, 3000)
 }
 
 onMounted(() => {
   loadSubmissions()
-
-  // attach a noise value to each location (mocked for now)
-  locations.value = locations.value.map((location) => ({
-    ...location,
-    noiseDb: mockNoiseDb(location.id),
-  }))
-
   initMap()
   renderMarkers()
   addLegend()
@@ -246,24 +251,54 @@ onBeforeUnmount(() => {
           <h2 class="drawer-title">
             {{ selectedLocation ? selectedLocation.name : 'Location details' }}
           </h2>
-          <button class="drawer-close" @click="selectedLocation = null" aria-label="Close">
-            ✕
-          </button>
+          <button class="drawer-close" @click="selectedLocation = null" aria-label="Close">✕</button>
         </div>
 
-        <div v-if="selectedLocation" class="drawer-body">
-          <p class="drawer-row"><span class="label">Type:</span> {{ selectedLocation.type }}</p>
-          <p class="drawer-row"><span class="label">Noise:</span> {{ selectedLocation.noiseDb }} dB</p>
+        <div class="drawer-body" v-if="selectedLocation">
           <p class="drawer-row">
-            <span class="label">Level:</span> {{ noiseLabel(selectedLocation.noiseDb) }}
-          </p>
-          <p class="drawer-row">
-            <span class="label">Last updated:</span> {{ lastUpdatedText(selectedLocation.id) }}
+            <span class="label">Type:</span> {{ selectedLocation.type }}
           </p>
 
+          <p class="drawer-row">
+            <span class="label">Average Rating:</span>
+            {{ getAverageRating(selectedLocation.id) === null ? 'N/A' : getAverageRating(selectedLocation.id).toFixed(1) }}
+          </p>
+
+          <p class="drawer-row">
+            <span class="label">Level:</span>
+            {{ ratingLabel(getAverageRating(selectedLocation.id)) }}
+          </p>
+
+          <p class="drawer-row">
+            <span class="label">Submissions:</span>
+            {{ getSubmissionsByLocation(selectedLocation.id).length }}
+          </p>
+
+          <p class="drawer-row">
+            <span class="label">Last updated:</span>
+            {{ lastUpdatedText(selectedLocation.id) }}
+          </p>
+
+          <p class="drawer-row">
+            <span class="label">Comment:</span>
+            {{ getLatestComment(selectedLocation.id) || 'No comment provided.' }}
+          </p>
+
+          <div v-if="getSubmissionsByLocation(selectedLocation.id).length">
+            <h4>All submissions</h4>
+            <ul>
+              <li v-for="(submission, index) in getSubmissionsByLocation(selectedLocation.id)" :key="index">
+                ⭐ {{ submission.rating }} —
+                {{ submission.comment || 'No comment' }}
+              </li>
+            </ul>
+          </div>
+
           <hr class="drawer-divider" />
+
           <div class="rating-section">
             <h3 class="rating-title">Rate Current Noise</h3>
+
             <select v-model="userRating" class="rating-select">
               <option :value="null" disabled>Select level...</option>
               <option value="1">1 - Very Quiet</option>
@@ -273,14 +308,24 @@ onBeforeUnmount(() => {
               <option value="5">5 - Very Loud</option>
             </select>
 
-            <button :disabled="!userRating" class="submit-btn" @click="submitRating">
+            <textarea
+              v-model="userComment"
+              maxlength="140"
+              class="comment-input"
+              placeholder="Optional comment (max 140 chars)..."
+            ></textarea>
+
+            <small>{{ userComment.length }}/140</small>
+
+            <button @click="submitRating" :disabled="!userRating" class="submit-btn">
               Submit Rating
             </button>
+
             <p v-if="showSuccess" class="success-msg">✅ Rating submitted!</p>
           </div>
         </div>
 
-        <div v-else class="drawer-body">
+        <div class="drawer-body" v-else>
           <p class="drawer-hint">Click a marker to see details.</p>
         </div>
       </aside>
@@ -289,9 +334,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html,
 body,
@@ -301,7 +344,7 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: #f6f7fb;
   color: #122033;
 }
@@ -310,11 +353,10 @@ body {
   min-height: 100vh;
 }
 
-/* ===== Header ===== */
 .topbar {
-  background: #fff;
+  background: white;
   border-bottom: 1px solid #e7e9f1;
-  padding: 18px;
+  padding: 18px 18px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -329,18 +371,16 @@ body {
 }
 
 .subtitle {
-  margin: 6px 0 0;
+  margin: 6px 0 0 0;
   font-size: 14px;
   color: #5a667a;
   max-width: 720px;
 }
 
-/* ===== Main Layout ===== */
 .content {
   padding: 12px;
 }
 
-/* ===== Map Card ===== */
 #map {
   width: 100%;
   height: calc(100vh - 110px);
@@ -350,7 +390,6 @@ body {
   background: #dfe6f3;
 }
 
-/* ===== Drawer (FR2) ===== */
 .drawer {
   position: fixed;
   right: 18px;
@@ -359,7 +398,7 @@ body {
   background: #fff;
   border: 1px solid #e7e9f1;
   border-radius: 14px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.12);
   overflow: hidden;
   transform: translateY(12px);
   opacity: 0;
@@ -400,13 +439,13 @@ body {
 }
 
 .drawer-row {
-  margin: 0 0 4px;
+  margin: 0 0 4px 0;
   font-size: 14px;
 }
 
 .drawer-row .label {
   display: inline-block;
-  min-width: 88px;
+  min-width: 44px;
   color: #5a667a;
   font-weight: 600;
 }
@@ -417,11 +456,10 @@ body {
   font-size: 14px;
 }
 
-/* ===== Rating UI (FR5) ===== */
 .drawer-divider {
   border: 0;
   border-top: 1px solid #eef0f6;
-  margin: 16px 0 12px;
+  margin: 16px 0 12px 0;
 }
 
 .rating-section {
@@ -448,7 +486,7 @@ body {
 .submit-btn {
   padding: 10px;
   background-color: #1f2a44;
-  color: #fff;
+  color: white;
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -474,13 +512,12 @@ body {
   text-align: center;
 }
 
-/* ===== Legend ===== */
 .legend {
-  background: #fff;
+  background: white;
   border: 1px solid #e7e9f1;
   border-radius: 12px;
   padding: 10px 12px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.12);
   font-size: 13px;
   color: #122033;
 }
@@ -501,10 +538,17 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0,0,0,0.15);
 }
 
-/* Mobile: bottom sheet */
+.comment-input {
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+}
+
 @media (max-width: 640px) {
   #map {
     height: calc(100vh - 120px);
