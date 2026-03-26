@@ -4,6 +4,7 @@ import CampusMap from "./components/CampusMap.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationSummary from "./components/LocationSummary.vue";
 import NoiseFilterBar from "./components/NoiseFilterBar.vue";
+import TypeFilterBar from "./components/TypeFilterBar.vue";
 import RatingForm from "./components/RatingForm.vue";
 import SubmissionList from "./components/SubmissionList.vue";
 import TopBar from "./components/TopBar.vue";
@@ -13,6 +14,7 @@ import { ratingLabel } from "./utils/locationHelpers";
 
 const selectedLocation = ref(null);
 const noiseFilter = ref("all");
+const typeFilter = ref("all");
 const showSuccess = ref(false);
 let successTimeoutId = null;
 
@@ -89,11 +91,13 @@ watch(selectedLocation, () => {
 
     <main class="content">
       <NoiseFilterBar v-model="noiseFilter" />
+      <TypeFilterBar v-model="typeFilter" />
 
       <CampusMap
         :locations="locations"
         :submissions="submissions"
         :noise-filter="noiseFilter"
+        :type-filter="typeFilter"
         :get-average-rating="getAverageRating"
         :get-submissions-by-location="getSubmissionsByLocation"
         @select-location="handleSelectLocation"

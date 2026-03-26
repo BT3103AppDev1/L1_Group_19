@@ -21,6 +21,10 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  typeFilter: {
+    type: String,
+    required: true,
+  },
   getAverageRating: {
     type: Function,
     required: true,
@@ -59,7 +63,9 @@ function renderMarkers() {
 
   const visibleLocations = props.locations.filter((location) => {
     const avgRating = props.getAverageRating(location.id);
-    return matchesNoiseFilter(props.noiseFilter, avgRating);
+    const matchesNoise = matchesNoiseFilter(props.noiseFilter, avgRating);
+    const matchesType = props.typeFilter === "all" || location.type === props.typeFilter;
+    return matchesNoise && matchesType;
   });
 
   visibleLocations.forEach((location) => {
@@ -97,6 +103,13 @@ function renderMarkers() {
 
 watch(
   () => props.noiseFilter,
+  () => {
+    renderMarkers();
+  }
+);
+
+watch(
+  () => props.typeFilter,
   () => {
     renderMarkers();
   }
