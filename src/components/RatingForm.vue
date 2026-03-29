@@ -6,7 +6,7 @@ const props = defineProps({
     type: String,
     default: "",
   },
-  isSubmitting: {
+  isSubmittingNoise: {
     type: Boolean,
     default: false,
   },
@@ -73,7 +73,7 @@ watch(
 
     <small>{{ userComment.length }}/140</small>
 
-    <button class="submit-btn" :disabled="!userRating || isSubmitting" @click="handleSubmit">
+    <button class="submit-btn" :disabled="!userRating || isSubmittingNoise" @click="handleSubmit">
       Submit Rating
     </button>
 

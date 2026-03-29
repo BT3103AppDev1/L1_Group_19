@@ -10,20 +10,14 @@ defineEmits(["close"]);
 </script>
 
 <template>
-  <aside class="drawer" :class="{ open: !!selectedLocation }" aria-label="Location details">
+  <aside v-if="selectedLocation" class="drawer">
     <div class="drawer-header">
-      <h2 class="drawer-title">
-        {{ selectedLocation ? selectedLocation.name : "Location details" }}
-      </h2>
-      <button class="drawer-close" aria-label="Close" @click="$emit('close')">✕</button>
+      <h2 class="drawer-title">{{ selectedLocation.name }}</h2>
+      <button class="close-btn" type="button" @click="$emit('close')">×</button>
     </div>
 
-    <div v-if="selectedLocation" class="drawer-body">
+    <div class="drawer-body">
       <slot />
-    </div>
-
-    <div v-else class="drawer-body">
-      <p class="drawer-hint">Click a marker to see details.</p>
     </div>
   </aside>
 </template>
@@ -31,65 +25,47 @@ defineEmits(["close"]);
 <style scoped>
 .drawer {
   position: fixed;
-  right: 18px;
-  top: 118px;
-  width: min(360px, calc(100vw - 36px));
+  top: 0;
+  right: 0;
+  width: min(420px, 100vw);
+  height: 100dvh;
   background: #fff;
-  border: 1px solid #e7e9f1;
-  border-radius: 14px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-  overflow: hidden;
-  transform: translateY(12px);
-  opacity: 0;
-  pointer-events: none;
-  transition: 180ms ease;
-  z-index: 9999;
-}
-
-.drawer.open {
-  transform: translateY(0);
-  opacity: 1;
-  pointer-events: auto;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
 }
 
 .drawer-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid #eef0f6;
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .drawer-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #122033;
 }
 
-.drawer-close {
+.close-btn {
   border: 0;
   background: transparent;
-  font-size: 18px;
+  font-size: 2rem;
+  line-height: 1;
   cursor: pointer;
+  color: #122033;
 }
 
 .drawer-body {
-  padding: 12px 14px;
-}
-
-.drawer-hint {
-  margin: 0;
-  color: #5a667a;
-  font-size: 14px;
-}
-
-@media (max-width: 640px) {
-  .drawer {
-    left: 14px;
-    right: 14px;
-    top: auto;
-    bottom: 14px;
-    width: auto;
-  }
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
 }
 </style>

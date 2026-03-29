@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import CampusMap from "./components/CampusMap.vue";
+import CrowdUpdateForm from "./components/CrowdUpdateForm.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationSummary from "./components/LocationSummary.vue";
 import NoiseFilterBar from "./components/NoiseFilterBar.vue";
@@ -16,12 +17,17 @@ const selectedLocation = ref(null);
 const noiseFilter = ref("all");
 const typeFilter = ref("all");
 const showSuccess = ref(false);
+const showCrowdSuccess = ref(false);
+
 let successTimeoutId = null;
+let crowdSuccessTimeoutId = null;
 
 const {
   submissions,
-  isSubmitting,
+  isSubmittingNoise,
+  isSubmittingCrowd,
   submitRating,
+  submitCrowdUpdate,
   getSubmissionsByLocation,
   getAverageRating,
   getLatestComment,
@@ -29,22 +35,44 @@ const {
 } = useSubmissions();
 
 const selectedLocationId = computed(() => selectedLocation.value?.id ?? "");
+
 const selectedAverageRating = computed(() =>
   selectedLocation.value ? getAverageRating(selectedLocation.value.id) : null
 );
+
 const selectedSubmissionCount = computed(() =>
   selectedLocation.value ? getSubmissionsByLocation(selectedLocation.value.id).length : 0
 );
+
 const selectedLatestComment = computed(() =>
   selectedLocation.value ? getLatestComment(selectedLocation.value.id) : ""
 );
+
 const selectedLastUpdated = computed(() =>
   selectedLocation.value ? lastUpdatedText(selectedLocation.value.id) : "No ratings yet"
 );
+
 const selectedSubmissions = computed(() =>
   selectedLocation.value ? getSubmissionsByLocation(selectedLocation.value.id) : []
 );
+
 const selectedRatingLabel = computed(() => ratingLabel(selectedAverageRating.value));
+
+const noiseSubmissions = computed(() =>
+  selectedSubmissions.value.filter(
+    (submission) =>
+      submission.rating !== null &&
+      submission.rating !== undefined
+  )
+);
+
+const crowdSubmissions = computed(() =>
+  selectedSubmissions.value.filter(
+    (submission) =>
+      submission.crowdLevel &&
+      submission.crowdLevel.length > 0
+  )
+);
 
 function clearSuccessMessage() {
   showSuccess.value = false;
@@ -52,6 +80,15 @@ function clearSuccessMessage() {
   if (successTimeoutId) {
     clearTimeout(successTimeoutId);
     successTimeoutId = null;
+  }
+}
+
+function clearCrowdSuccessMessage() {
+  showCrowdSuccess.value = false;
+
+  if (crowdSuccessTimeoutId) {
+    clearTimeout(crowdSuccessTimeoutId);
+    crowdSuccessTimeoutId = null;
   }
 }
 
@@ -80,8 +117,29 @@ async function handleSubmitRating({ rating, comment }) {
   }
 }
 
+async function handleSubmitCrowdUpdate({ crowdLevel }) {
+  if (!selectedLocation.value) return;
+
+  try {
+    await submitCrowdUpdate({
+      locationId: selectedLocation.value.id,
+      crowdLevel,
+    });
+
+    clearCrowdSuccessMessage();
+    showCrowdSuccess.value = true;
+    crowdSuccessTimeoutId = setTimeout(() => {
+      showCrowdSuccess.value = false;
+      crowdSuccessTimeoutId = null;
+    }, 3000);
+  } catch (err) {
+    clearCrowdSuccessMessage();
+  }
+}
+
 watch(selectedLocation, () => {
   clearSuccessMessage();
+  clearCrowdSuccessMessage();
 });
 </script>
 
@@ -113,15 +171,25 @@ watch(selectedLocation, () => {
           :latest-comment="selectedLatestComment"
         />
 
-        <SubmissionList :submissions="selectedSubmissions" />
+        <SubmissionList :submissions="noiseSubmissions" type="noise"/>
 
         <hr class="drawer-divider" />
 
         <RatingForm
           :location-id="selectedLocationId"
-          :is-submitting="isSubmitting"
+          :is-submitting="isSubmittingNoise"
           :show-success="showSuccess"
           @submit="handleSubmitRating"
+        />
+
+        <hr class="drawer-divider" />
+
+        <SubmissionList :submissions="crowdSubmissions" type="crowd"/>
+        <CrowdUpdateForm
+          :location-id="selectedLocationId"
+          :is-submitting="isSubmittingCrowd"
+          :show-success="showCrowdSuccess"
+          @submit="handleSubmitCrowdUpdate"
         />
       </LocationDrawer>
     </main>
