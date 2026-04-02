@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import CampusMap from "./components/CampusMap.vue";
 import CrowdUpdateForm from "./components/CrowdUpdateForm.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
@@ -18,6 +18,8 @@ const noiseFilter = ref("all");
 const typeFilter = ref("all");
 const showSuccess = ref(false);
 const showCrowdSuccess = ref(false);
+const searchQuery = ref("");
+const selectedSearchLocation = ref(null);
 
 let successTimeoutId = null;
 let crowdSuccessTimeoutId = null;
@@ -35,6 +37,19 @@ const {
 } = useSubmissions();
 
 const selectedLocationId = computed(() => selectedLocation.value?.id ?? "");
+
+const filteredLocations = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+
+  if (!query) return [];
+
+  return locations.filter((location) => {
+    return (
+      location.name.toLowerCase().includes(query) ||
+      location.type.toLowerCase().includes(query)
+    );
+  });
+});
 
 const selectedAverageRating = computed(() =>
   selectedLocation.value ? getAverageRating(selectedLocation.value.id) : null
@@ -96,6 +111,16 @@ function handleSelectLocation(location) {
   selectedLocation.value = location;
 }
 
+function handleSearchSelect(location) {
+  selectedLocation.value = location;
+  selectedSearchLocation.value = location;
+  searchQuery.value = "";
+
+  nextTick(() => {
+    selectedSearchLocation.value = null;
+  });
+}
+
 async function handleSubmitRating({ rating, comment }) {
   if (!selectedLocation.value) return;
 
@@ -141,6 +166,7 @@ watch(selectedLocation, () => {
   clearSuccessMessage();
   clearCrowdSuccessMessage();
 });
+
 </script>
 
 <template>
@@ -148,6 +174,32 @@ watch(selectedLocation, () => {
     <TopBar />
 
     <main class="content">
+      <div class="search-panel">
+        <input
+          v-model.trim="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="Search for a study location..."
+          aria-label="Search for a study location"
+        />
+
+        <div v-if="searchQuery && filteredLocations.length" class="search-results">
+          <button
+            v-for="location in filteredLocations"
+            :key="location.id"
+            class="search-result-item"
+            @click="handleSearchSelect(location)"
+          >
+            <strong>{{ location.name }}</strong>
+            <span>{{ location.type }}</span>
+          </button>
+        </div>
+
+        <div v-else-if="searchQuery && !filteredLocations.length" class="search-results empty">
+          <p>No matching locations found.</p>
+        </div>
+      </div>
+
       <NoiseFilterBar v-model="noiseFilter" />
       <TypeFilterBar v-model="typeFilter" />
 
@@ -158,6 +210,7 @@ watch(selectedLocation, () => {
         :type-filter="typeFilter"
         :get-average-rating="getAverageRating"
         :get-submissions-by-location="getSubmissionsByLocation"
+        :selected-search-location="selectedSearchLocation"
         @select-location="handleSelectLocation"
       />
 
@@ -171,7 +224,7 @@ watch(selectedLocation, () => {
           :latest-comment="selectedLatestComment"
         />
 
-        <SubmissionList :submissions="noiseSubmissions" type="noise"/>
+        <SubmissionList :submissions="noiseSubmissions" type="noise" />
 
         <hr class="drawer-divider" />
 
@@ -184,7 +237,7 @@ watch(selectedLocation, () => {
 
         <hr class="drawer-divider" />
 
-        <SubmissionList :submissions="crowdSubmissions" type="crowd"/>
+        <SubmissionList :submissions="crowdSubmissions" type="crowd" />
         <CrowdUpdateForm
           :location-id="selectedLocationId"
           :is-submitting="isSubmittingCrowd"
@@ -236,4 +289,75 @@ body {
   border-top: 1px solid #eef0f6;
   margin: 16px 0 12px 0;
 }
+
+.search-panel {
+  position: relative;
+  width: min(420px, 100%);
+  margin-bottom: 12px;
+  z-index: 1000;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d6dbe7;
+  border-radius: 12px;
+  background: white;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.search-input:focus {
+  border-color: #1f2a44;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e7e9f1;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.search-result-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 0;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  background: #f6f7fb;
+}
+
+.search-result-item strong {
+  font-size: 14px;
+  color: #122033;
+}
+
+.search-result-item span {
+  font-size: 12px;
+  color: #5a667a;
+}
+
+.search-results.empty {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #5a667a;
+}
+
+.search-results.empty p {
+  margin: 0;
+}
+
 </style>

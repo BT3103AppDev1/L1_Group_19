@@ -33,6 +33,10 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  selectedSearchLocation: {
+  type: Object,
+  default: null,
+  },
 });
 
 const emit = defineEmits(["select-location"]);
@@ -121,6 +125,16 @@ watch(
     renderMarkers();
   },
   { deep: true }
+);
+
+watch(
+  () => props.selectedSearchLocation,
+  (location) => {
+    if (!location || !map.value) return;
+
+    map.value.setView([location.lat, location.lng], 17);
+    emit("select-location", location);
+  }
 );
 
 onMounted(() => {
