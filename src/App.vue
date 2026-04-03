@@ -35,6 +35,9 @@ const {
   submissions,
   isSubmittingNoise,
   isSubmittingCrowd,
+  submissionError,
+  isLiveConnected,
+  lastSyncAt,
   submitRating,
   submitCrowdUpdate,
   getSubmissionsByLocation,
@@ -62,12 +65,17 @@ const visibleLocations = computed(() => {
   const filtered = locations.filter((location) => {
     const averageRating = getAverageRating(location.id);
     const matchesNoise = matchesNoiseFilter(noiseFilter.value, averageRating);
-    const matchesType = typeFilter.value === "all" || location.type === typeFilter.value;
+    const matchesType =
+      typeFilter.value === "all" || location.type === typeFilter.value;
 
     return matchesNoise && matchesType;
   });
 
-  const sorted = sortLocationsByNoise(filtered, getAverageRating, sortOrder.value);
+  const sorted = sortLocationsByNoise(
+    filtered,
+    getAverageRating,
+    sortOrder.value
+  );
 
   return sorted.map((location, index) => ({
     ...location,
@@ -82,7 +90,9 @@ const selectedAverageRating = computed(() =>
 );
 
 const selectedSubmissionCount = computed(() =>
-  selectedLocation.value ? getSubmissionsByLocation(selectedLocation.value.id).length : 0
+  selectedLocation.value
+    ? getSubmissionsByLocation(selectedLocation.value.id).length
+    : 0
 );
 
 const selectedLatestComment = computed(() =>
@@ -90,28 +100,31 @@ const selectedLatestComment = computed(() =>
 );
 
 const selectedLastUpdated = computed(() =>
-  selectedLocation.value ? lastUpdatedText(selectedLocation.value.id) : "No ratings yet"
+  selectedLocation.value
+    ? lastUpdatedText(selectedLocation.value.id)
+    : "No ratings yet"
 );
 
 const selectedSubmissions = computed(() =>
-  selectedLocation.value ? getSubmissionsByLocation(selectedLocation.value.id) : []
+  selectedLocation.value
+    ? getSubmissionsByLocation(selectedLocation.value.id)
+    : []
 );
 
-const selectedRatingLabel = computed(() => ratingLabel(selectedAverageRating.value));
+const selectedRatingLabel = computed(() =>
+  ratingLabel(selectedAverageRating.value)
+);
 
 const noiseSubmissions = computed(() =>
   selectedSubmissions.value.filter(
     (submission) =>
-      submission.rating !== null &&
-      submission.rating !== undefined
+      submission.rating !== null && submission.rating !== undefined
   )
 );
 
 const crowdSubmissions = computed(() =>
   selectedSubmissions.value.filter(
-    (submission) =>
-      submission.crowdLevel &&
-      submission.crowdLevel.length > 0
+    (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
   )
 );
 
@@ -192,12 +205,18 @@ watch(selectedLocation, () => {
   clearSuccessMessage();
   clearCrowdSuccessMessage();
 });
-
 </script>
 
 <template>
   <div class="page-shell">
     <TopBar />
+
+    <p class="sync-status">
+      {{ isLiveConnected ? "Live updates on" : "Using fallback refresh" }}
+      <span v-if="lastSyncAt"
+        >• Last synced: {{ new Date(lastSyncAt).toLocaleTimeString() }}</span
+      >
+    </p>
 
     <main class="content">
       <div class="workspace">
@@ -211,7 +230,10 @@ watch(selectedLocation, () => {
               aria-label="Search for a study location"
             />
 
-            <div v-if="searchQuery && filteredLocations.length" class="search-results">
+            <div
+              v-if="searchQuery && filteredLocations.length"
+              class="search-results"
+            >
               <button
                 v-for="location in filteredLocations"
                 :key="location.id"
@@ -223,7 +245,10 @@ watch(selectedLocation, () => {
               </button>
             </div>
 
-            <div v-else-if="searchQuery && !filteredLocations.length" class="search-results empty">
+            <div
+              v-else-if="searchQuery && !filteredLocations.length"
+              class="search-results empty"
+            >
               <p>No matching locations found.</p>
             </div>
           </div>
@@ -232,7 +257,10 @@ watch(selectedLocation, () => {
           <TypeFilterBar v-model="typeFilter" />
           <LocationSortBar v-model="sortOrder" />
 
-          <LocationList :locations="visibleLocations" @select-location="handleSelectLocation" />
+          <LocationList
+            :locations="visibleLocations"
+            @select-location="handleSelectLocation"
+          />
         </aside>
 
         <section class="map-panel">
@@ -247,7 +275,10 @@ watch(selectedLocation, () => {
         </section>
       </div>
 
-      <LocationDrawer :selected-location="selectedLocation" @close="selectedLocation = null">
+      <LocationDrawer
+        :selected-location="selectedLocation"
+        @close="selectedLocation = null"
+      >
         <LocationSummary
           :location="selectedLocation"
           :average-rating="selectedAverageRating"
@@ -426,6 +457,12 @@ body {
   .map-panel {
     min-height: 50dvh;
   }
+}
+
+.sync-status {
+  margin: 8px 12px 0;
+  font-size: 13px;
+  color: #5a667a;
 }
 
 </style>

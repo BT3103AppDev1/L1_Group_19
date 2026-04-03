@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import {
   addDoc,
   collection,
+  getDocs,
   onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
@@ -22,19 +23,114 @@ function toMillis(timestamp) {
   return null;
 }
 
+async function fetchSubmissionsOnce() {
+  try {
+    const snapshot = await getDocs(collection(db, "submissions"));
+
+    submissions.value = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+
+        return {
+          id: doc.id,
+          locationId: data.locationId,
+          rating:
+            data.rating !== undefined && data.rating !== null
+              ? Number(data.rating)
+              : null,
+          comment: data.comment ?? "",
+          crowdLevel: data.crowdLevel ?? "",
+          photoUrl: data.photoUrl ?? "",
+          createdAt: toMillis(data.createdAt),
+        };
+      })
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    lastSyncAt.value = Date.now();
+  } catch (err) {
+    console.error("Polling fetch failed:", err);
+  }
+}
+
+function startPolling(intervalMs = 5 * 60 * 1000) {
+  stopPolling();
+
+  pollingTimer = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      fetchSubmissionsOnce();
+    }
+  }, intervalMs);
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
 export function useSubmissions() {
   const submissions = ref([]);
   const isSubmittingNoise = ref(false);
   const isSubmittingCrowd = ref(false);
   const submissionError = ref(null);
+  const isLiveConnected = ref(false);
+  const lastSyncAt = ref(null);
   let unsubscribeSubmissions = null;
+  let pollingTimer = null;
+
+  async function fetchSubmissionsOnce() {
+    try {
+      const snapshot = await getDocs(collection(db, "submissions"));
+
+      submissions.value = snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+
+          return {
+            id: doc.id,
+            locationId: data.locationId,
+            rating:
+              data.rating !== undefined && data.rating !== null
+                ? Number(data.rating)
+                : null,
+            comment: data.comment ?? "",
+            crowdLevel: data.crowdLevel ?? "",
+            photoUrl: data.photoUrl ?? "",
+            createdAt: toMillis(data.createdAt),
+          };
+        })
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+      lastSyncAt.value = Date.now();
+    } catch (err) {
+      console.error("Polling fetch failed:", err);
+    }
+  }
+
+  function startPolling(intervalMs = 5 * 60 * 1000) {
+    stopPolling();
+
+    pollingTimer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchSubmissionsOnce();
+      }
+    }, intervalMs);
+  }
+
+  function stopPolling() {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+  }
 
   function subscribeToSubmissions() {
     const submissionsRef = collection(db, "submissions");
 
     unsubscribeSubmissions = onSnapshot(
       submissionsRef,
-      { serverTimestamps: "estimate"},
+      { serverTimestamps: "estimate" },
       (snapshot) => {
         submissions.value = snapshot.docs
           .map((doc) => {
@@ -52,15 +148,19 @@ export function useSubmissions() {
               photoUrl: data.photoUrl ?? "",
               createdAt: toMillis(data.createdAt),
             };
-            })
+          })
           .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
+        stopPolling();
+        isLiveConnected.value = true;
+        lastSyncAt.value = Date.now();
         submissionError.value = null;
       },
       (err) => {
         console.error("Failed to listen for Firestore submissions:", err);
-        submissions.value = [];
+        isLiveConnected.value = false;
         submissionError.value = err;
+        startPolling();
       }
     );
   }
@@ -154,12 +254,26 @@ export function useSubmissions() {
     }
   }
 
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      if (!unsubscribeSubmissions) subscribeToSubmissions();
+    } else {
+      if (unsubscribeSubmissions) {
+        unsubscribeSubmissions();
+        unsubscribeSubmissions = null;
+      }
+    }
+  }
+  
   onMounted(() => {
     subscribeToSubmissions();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
   });
-
+  
   onBeforeUnmount(() => {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
+    stopPolling();
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
   });
 
   return {
@@ -167,6 +281,8 @@ export function useSubmissions() {
     isSubmittingNoise,
     isSubmittingCrowd,
     submissionError,
+    isLiveConnected,
+    lastSyncAt,
     submitRating,
     submitCrowdUpdate,
     getSubmissionsByLocation,
