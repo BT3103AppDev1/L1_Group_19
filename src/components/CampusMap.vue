@@ -2,11 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import MapLegend from "./MapLegend.vue";
-import {
-  matchesNoiseFilter,
-  ratingColor,
-  ratingLabel,
-} from "../utils/locationHelpers";
+import { ratingColor, ratingLabel } from "../utils/locationHelpers";
 
 const props = defineProps({
   locations: {
@@ -15,14 +11,6 @@ const props = defineProps({
   },
   submissions: {
     type: Array,
-    required: true,
-  },
-  noiseFilter: {
-    type: String,
-    required: true,
-  },
-  typeFilter: {
-    type: String,
     required: true,
   },
   getAverageRating: {
@@ -34,8 +22,8 @@ const props = defineProps({
     required: true,
   },
   selectedSearchLocation: {
-  type: Object,
-  default: null,
+    type: Object,
+    default: null,
   },
 });
 
@@ -65,14 +53,7 @@ function renderMarkers() {
 
   markersLayer.value.clearLayers();
 
-  const visibleLocations = props.locations.filter((location) => {
-    const avgRating = props.getAverageRating(location.id);
-    const matchesNoise = matchesNoiseFilter(props.noiseFilter, avgRating);
-    const matchesType = props.typeFilter === "all" || location.type === props.typeFilter;
-    return matchesNoise && matchesType;
-  });
-
-  visibleLocations.forEach((location) => {
+  props.locations.forEach((location) => {
     const avgRating = props.getAverageRating(location.id);
     const submissionCount = props.getSubmissionsByLocation(location.id).length;
 
@@ -99,24 +80,18 @@ function renderMarkers() {
     marker.addTo(markersLayer.value);
   });
 
-  if (visibleLocations.length) {
-    const bounds = L.latLngBounds(visibleLocations.map((location) => [location.lat, location.lng]));
+  if (props.locations.length) {
+    const bounds = L.latLngBounds(props.locations.map((location) => [location.lat, location.lng]));
     map.value.fitBounds(bounds, { padding: [30, 30] });
   }
 }
 
 watch(
-  () => props.noiseFilter,
+  () => props.locations,
   () => {
     renderMarkers();
-  }
-);
-
-watch(
-  () => props.typeFilter,
-  () => {
-    renderMarkers();
-  }
+  },
+  { deep: true }
 );
 
 watch(

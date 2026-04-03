@@ -3,6 +3,8 @@ import { computed, nextTick, ref, watch } from "vue";
 import CampusMap from "./components/CampusMap.vue";
 import CrowdUpdateForm from "./components/CrowdUpdateForm.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
+import LocationList from "./components/LocationList.vue";
+import LocationSortBar from "./components/LocationSortBar.vue";
 import LocationSummary from "./components/LocationSummary.vue";
 import NoiseFilterBar from "./components/NoiseFilterBar.vue";
 import TypeFilterBar from "./components/TypeFilterBar.vue";
@@ -11,11 +13,16 @@ import SubmissionList from "./components/SubmissionList.vue";
 import TopBar from "./components/TopBar.vue";
 import { useSubmissions } from "./composables/useSubmissions";
 import { locations } from "./data/locations";
-import { ratingLabel } from "./utils/locationHelpers";
+import {
+  matchesNoiseFilter,
+  ratingLabel,
+  sortLocationsByNoise,
+} from "./utils/locationHelpers";
 
 const selectedLocation = ref(null);
 const noiseFilter = ref("all");
 const typeFilter = ref("all");
+const sortOrder = ref("default");
 const showSuccess = ref(false);
 const showCrowdSuccess = ref(false);
 const searchQuery = ref("");
@@ -49,6 +56,25 @@ const filteredLocations = computed(() => {
       location.type.toLowerCase().includes(query)
     );
   });
+});
+
+const visibleLocations = computed(() => {
+  const filtered = locations.filter((location) => {
+    const averageRating = getAverageRating(location.id);
+    const matchesNoise = matchesNoiseFilter(noiseFilter.value, averageRating);
+    const matchesType = typeFilter.value === "all" || location.type === typeFilter.value;
+
+    return matchesNoise && matchesType;
+  });
+
+  const sorted = sortLocationsByNoise(filtered, getAverageRating, sortOrder.value);
+
+  return sorted.map((location, index) => ({
+    ...location,
+    rank: index + 1,
+    averageRating: getAverageRating(location.id),
+    noiseLabel: ratingLabel(getAverageRating(location.id)),
+  }));
 });
 
 const selectedAverageRating = computed(() =>
@@ -174,45 +200,52 @@ watch(selectedLocation, () => {
     <TopBar />
 
     <main class="content">
-      <div class="search-panel">
-        <input
-          v-model.trim="searchQuery"
-          type="text"
-          class="search-input"
-          placeholder="Search for a study location..."
-          aria-label="Search for a study location"
-        />
+      <div class="workspace">
+        <aside class="control-panel">
+          <div class="search-panel">
+            <input
+              v-model.trim="searchQuery"
+              type="text"
+              class="search-input"
+              placeholder="Search for a study location..."
+              aria-label="Search for a study location"
+            />
 
-        <div v-if="searchQuery && filteredLocations.length" class="search-results">
-          <button
-            v-for="location in filteredLocations"
-            :key="location.id"
-            class="search-result-item"
-            @click="handleSearchSelect(location)"
-          >
-            <strong>{{ location.name }}</strong>
-            <span>{{ location.type }}</span>
-          </button>
-        </div>
+            <div v-if="searchQuery && filteredLocations.length" class="search-results">
+              <button
+                v-for="location in filteredLocations"
+                :key="location.id"
+                class="search-result-item"
+                @click="handleSearchSelect(location)"
+              >
+                <strong>{{ location.name }}</strong>
+                <span>{{ location.type }}</span>
+              </button>
+            </div>
 
-        <div v-else-if="searchQuery && !filteredLocations.length" class="search-results empty">
-          <p>No matching locations found.</p>
-        </div>
+            <div v-else-if="searchQuery && !filteredLocations.length" class="search-results empty">
+              <p>No matching locations found.</p>
+            </div>
+          </div>
+
+          <NoiseFilterBar v-model="noiseFilter" />
+          <TypeFilterBar v-model="typeFilter" />
+          <LocationSortBar v-model="sortOrder" />
+
+          <LocationList :locations="visibleLocations" @select-location="handleSelectLocation" />
+        </aside>
+
+        <section class="map-panel">
+          <CampusMap
+            :locations="visibleLocations"
+            :submissions="submissions"
+            :get-average-rating="getAverageRating"
+            :get-submissions-by-location="getSubmissionsByLocation"
+            :selected-search-location="selectedSearchLocation"
+            @select-location="handleSelectLocation"
+          />
+        </section>
       </div>
-
-      <NoiseFilterBar v-model="noiseFilter" />
-      <TypeFilterBar v-model="typeFilter" />
-
-      <CampusMap
-        :locations="locations"
-        :submissions="submissions"
-        :noise-filter="noiseFilter"
-        :type-filter="typeFilter"
-        :get-average-rating="getAverageRating"
-        :get-submissions-by-location="getSubmissionsByLocation"
-        :selected-search-location="selectedSearchLocation"
-        @select-location="handleSelectLocation"
-      />
 
       <LocationDrawer :selected-location="selectedLocation" @close="selectedLocation = null">
         <LocationSummary
@@ -284,6 +317,26 @@ body {
   flex-direction: column;
 }
 
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.control-panel {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.map-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
 .drawer-divider {
   border: 0;
   border-top: 1px solid #eef0f6;
@@ -292,7 +345,7 @@ body {
 
 .search-panel {
   position: relative;
-  width: min(420px, 100%);
+  width: 100%;
   margin-bottom: 12px;
   z-index: 1000;
 }
@@ -358,6 +411,21 @@ body {
 
 .search-results.empty p {
   margin: 0;
+}
+
+@media (max-width: 960px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .control-panel {
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .map-panel {
+    min-height: 50dvh;
+  }
 }
 
 </style>

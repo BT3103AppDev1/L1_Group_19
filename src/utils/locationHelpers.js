@@ -1,3 +1,18 @@
+export const NOISE_LEVEL_SCALE = [
+  { value: "quiet", label: "Quiet", min: 0, max: 2 },
+  { value: "moderate", label: "Moderate", min: 2, max: 3.5 },
+  { value: "noisy", label: "Noisy", min: 3.5, max: 4.5 },
+  { value: "very-loud", label: "Very loud", min: 4.5, max: 5 },
+];
+
+export function getNoiseLevel(avgRating) {
+  if (avgRating === null) return null;
+  if (avgRating <= 2) return NOISE_LEVEL_SCALE[0];
+  if (avgRating <= 3.5) return NOISE_LEVEL_SCALE[1];
+  if (avgRating <= 4.5) return NOISE_LEVEL_SCALE[2];
+  return NOISE_LEVEL_SCALE[3];
+}
+
 export function ratingColor(avgRating) {
   if (avgRating === null) return "#95a5a6";
   if (avgRating <= 2) return "#2ecc71";
@@ -7,23 +22,33 @@ export function ratingColor(avgRating) {
 }
 
 export function ratingLabel(avgRating) {
-  if (avgRating === null) return "No ratings yet";
-  if (avgRating <= 2) return "Quiet";
-  if (avgRating <= 3.5) return "Moderate";
-  if (avgRating <= 4.5) return "Noisy";
-  return "Very loud";
+  return getNoiseLevel(avgRating)?.label ?? "No ratings yet";
 }
 
 export function matchesNoiseFilter(noiseFilter, avgRating) {
   if (noiseFilter === "all") return true;
   if (avgRating === null) return false;
 
-  if (noiseFilter === "quiet") return avgRating <= 2;
-  if (noiseFilter === "moderate") return avgRating > 2 && avgRating <= 3.5;
-  if (noiseFilter === "noisy") return avgRating > 3.5 && avgRating <= 4.5;
-  if (noiseFilter === "very-loud") return avgRating > 4.5;
+  return getNoiseLevel(avgRating)?.value === noiseFilter;
+}
 
-  return true;
+export function sortLocationsByNoise(locations, getAverageRating, sortOrder = "default") {
+  if (sortOrder !== "quietest") return locations;
+
+  return [...locations].sort((left, right) => {
+    const leftRating = getAverageRating(left.id);
+    const rightRating = getAverageRating(right.id);
+
+    if (leftRating === null && rightRating === null) {
+      return left.name.localeCompare(right.name);
+    }
+
+    if (leftRating === null) return 1;
+    if (rightRating === null) return -1;
+    if (leftRating === rightRating) return left.name.localeCompare(right.name);
+
+    return leftRating - rightRating;
+  });
 }
 
 export function formatRelativeTime(timestamp) {
