@@ -9,7 +9,7 @@ defineProps({
 const emit = defineEmits(["select-location"]);
 
 function formatAverage(averageRating) {
-  return averageRating === null ? "No ratings yet" : averageRating.toFixed(1);
+  return averageRating === null ? "No recent data" : averageRating.toFixed(1);
 }
 </script>
 

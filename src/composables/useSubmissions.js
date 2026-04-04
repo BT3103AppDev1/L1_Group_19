@@ -2,12 +2,16 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   onSnapshot,
   serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { formatRelativeTime } from "../utils/locationHelpers";
+
+const RECENT_SUBMISSION_WINDOW_MS = 60 * 60 * 1000;
 
 function toMillis(timestamp) {
   if (!timestamp) return null;
@@ -23,60 +27,29 @@ function toMillis(timestamp) {
   return null;
 }
 
-async function fetchSubmissionsOnce() {
-  try {
-    const snapshot = await getDocs(collection(db, "submissions"));
-
-    submissions.value = snapshot.docs
-      .map((doc) => {
-        const data = doc.data();
-
-        return {
-          id: doc.id,
-          locationId: data.locationId,
-          rating:
-            data.rating !== undefined && data.rating !== null
-              ? Number(data.rating)
-              : null,
-          comment: data.comment ?? "",
-          crowdLevel: data.crowdLevel ?? "",
-          photoUrl: data.photoUrl ?? "",
-          createdAt: toMillis(data.createdAt),
-        };
-      })
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-
-    lastSyncAt.value = Date.now();
-  } catch (err) {
-    console.error("Polling fetch failed:", err);
-  }
+function normalizeSubmissionId(docId, data) {
+  return String(data?.submissionId ?? docId ?? "");
 }
 
-function startPolling(intervalMs = 5 * 60 * 1000) {
-  stopPolling();
-
-  pollingTimer = setInterval(() => {
-    if (document.visibilityState === "visible") {
-      fetchSubmissionsOnce();
-    }
-  }, intervalMs);
-}
-
-function stopPolling() {
-  if (pollingTimer) {
-    clearInterval(pollingTimer);
-    pollingTimer = null;
-  }
+function normalizeFlagSubmissionId(data) {
+  return String(
+    data?.submissionId ??
+      data?.flaggedSubmissionId ??
+      data?.submissionRefId ??
+      ""
+  );
 }
 
 export function useSubmissions() {
   const submissions = ref([]);
-  const isSubmittingNoise = ref(false);
-  const isSubmittingCrowd = ref(false);
+  const submissionFlags = ref([]);
+  const isSubmittingSubmission = ref(false);
+  const isSubmittingFlag = ref(false);
   const submissionError = ref(null);
   const isLiveConnected = ref(false);
   const lastSyncAt = ref(null);
   let unsubscribeSubmissions = null;
+  let unsubscribeFlags = null;
   let pollingTimer = null;
 
   async function fetchSubmissionsOnce() {
@@ -89,6 +62,7 @@ export function useSubmissions() {
 
           return {
             id: doc.id,
+            submissionId: normalizeSubmissionId(doc.id, data),
             locationId: data.locationId,
             rating:
               data.rating !== undefined && data.rating !== null
@@ -96,7 +70,6 @@ export function useSubmissions() {
                 : null,
             comment: data.comment ?? "",
             crowdLevel: data.crowdLevel ?? "",
-            photoUrl: data.photoUrl ?? "",
             createdAt: toMillis(data.createdAt),
           };
         })
@@ -138,6 +111,7 @@ export function useSubmissions() {
 
             return {
               id: doc.id,
+              submissionId: normalizeSubmissionId(doc.id, data),
               locationId: data.locationId,
               rating:
                 data.rating !== undefined && data.rating !== null
@@ -145,7 +119,6 @@ export function useSubmissions() {
                   : null,
               comment: data.comment ?? "",
               crowdLevel: data.crowdLevel ?? "",
-              photoUrl: data.photoUrl ?? "",
               createdAt: toMillis(data.createdAt),
             };
           })
@@ -165,14 +138,65 @@ export function useSubmissions() {
     );
   }
 
+  function subscribeToSubmissionFlags() {
+    unsubscribeFlags = onSnapshot(
+      collection(db, "submission_flags"),
+      { serverTimestamps: "estimate" },
+      (snapshot) => {
+        submissionFlags.value = snapshot.docs.map((flagDoc) => {
+          const data = flagDoc.data({ serverTimestamps: "estimate" });
+
+          return {
+            id: flagDoc.id,
+            submissionId: normalizeFlagSubmissionId(data),
+            locationId: data.locationId ?? "",
+            submissionType: data.submissionType ?? "",
+            reason: data.reason ?? "",
+            notes: data.notes ?? "",
+            createdAt: toMillis(data.createdAt),
+          };
+        });
+      },
+      (err) => {
+        console.error("Failed to listen for submission flags:", err);
+        submissionError.value = err;
+      }
+    );
+  }
+
+  function getFlagCount(submissionId) {
+    const normalizedSubmissionId = String(submissionId ?? "");
+
+    return submissionFlags.value.filter(
+      (flag) => String(flag.submissionId ?? "") === normalizedSubmissionId
+    ).length;
+  }
+
+  function isSubmissionInvalid(submissionId) {
+    return getFlagCount(submissionId) >= 2;
+  }
+
   function getSubmissionsByLocation(locationId) {
     return submissions.value.filter(
-      (submission) => submission.locationId === locationId
+      (submission) =>
+        submission.locationId === locationId &&
+        !isSubmissionInvalid(submission.submissionId)
+    );
+  }
+
+  function getRecentSubmissionsByLocation(locationId) {
+    const now = Date.now();
+
+    return getSubmissionsByLocation(locationId).filter(
+      (submission) =>
+        submission.createdAt !== null &&
+        submission.createdAt !== undefined &&
+        now - submission.createdAt <= RECENT_SUBMISSION_WINDOW_MS
     );
   }
 
   function getAverageRating(locationId) {
-    const locationSubs = getSubmissionsByLocation(locationId).filter(
+    const locationSubs = getRecentSubmissionsByLocation(locationId).filter(
       (submission) => submission.rating !== null && !Number.isNaN(submission.rating)
     );
 
@@ -183,7 +207,7 @@ export function useSubmissions() {
   }
 
   function getLatestSubmission(locationId) {
-    const locationSubs = getSubmissionsByLocation(locationId);
+    const locationSubs = getRecentSubmissionsByLocation(locationId);
     if (!locationSubs.length) return null;
 
     return locationSubs.reduce((latest, current) =>
@@ -192,7 +216,7 @@ export function useSubmissions() {
   }
 
   function getLatestComment(locationId) {
-    const locationSubs = getSubmissionsByLocation(locationId)
+    const locationSubs = getRecentSubmissionsByLocation(locationId)
       .filter((submission) => submission.comment && submission.comment.trim().length > 0);
 
     if (!locationSubs.length) return null;
@@ -204,53 +228,55 @@ export function useSubmissions() {
 
   function lastUpdatedText(locationId) {
     const latest = getLatestSubmission(locationId);
-    if (!latest) return "No ratings yet";
+    if (!latest) return "No recent data";
     return formatRelativeTime(latest.createdAt);
   }
 
-  async function submitRating({ locationId, rating, comment }) {
-    if (!locationId || !rating) return;
+  async function submitSubmission({ locationId, rating, crowdLevel, comment }) {
+    if (!locationId || !rating || !crowdLevel) return;
 
-    isSubmittingNoise.value = true;
+    isSubmittingSubmission.value = true;
 
     try {
-      await addDoc(collection(db, "submissions"), {
+      const submissionRef = doc(collection(db, "submissions"));
+
+      await setDoc(submissionRef, {
+        submissionId: submissionRef.id,
         locationId,
         rating: parseInt(rating, 10),
         comment: comment.trim(),
-        crowdLevel: "",
-        photoUrl: "",
+        crowdLevel,
         createdAt: serverTimestamp(),
       });
     } catch (err) {
-      console.error("Failed to submit rating to Firestore:", err);
+      console.error("Failed to submit combined submission to Firestore:", err);
       submissionError.value = err;
       throw err;
     } finally {
-      isSubmittingNoise.value = false;
+      isSubmittingSubmission.value = false;
     }
   }
 
-  async function submitCrowdUpdate({ locationId, crowdLevel }) {
-    if (!locationId || !crowdLevel) return;
+  async function flagSubmission({ submissionId, locationId, reason, notes = "" }) {
+    if (!submissionId || !locationId || !reason) return;
 
-    isSubmittingCrowd.value = true;
+    isSubmittingFlag.value = true;
 
     try {
-      await addDoc(collection(db, "submissions"), {
+      await addDoc(collection(db, "submission_flags"), {
+        submissionId,
         locationId,
-        rating: null,
-        comment: "",
-        crowdLevel,
-        photoUrl: "",
+        submissionType: "noise",
+        reason,
+        notes: notes.trim(),
         createdAt: serverTimestamp(),
       });
     } catch (err) {
-      console.error("Failed to submit crowd update to Firestore:", err);
+      console.error("Failed to flag submission in Firestore:", err);
       submissionError.value = err;
       throw err;
     } finally {
-      isSubmittingCrowd.value = false;
+      isSubmittingFlag.value = false;
     }
   }
 
@@ -267,25 +293,31 @@ export function useSubmissions() {
   
   onMounted(() => {
     subscribeToSubmissions();
+    subscribeToSubmissionFlags();
     document.addEventListener("visibilitychange", handleVisibilityChange);
   });
   
   onBeforeUnmount(() => {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
+    if (unsubscribeFlags) unsubscribeFlags();
     stopPolling();
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   });
 
   return {
     submissions,
-    isSubmittingNoise,
-    isSubmittingCrowd,
+    submissionFlags,
+    isSubmittingSubmission,
+    isSubmittingFlag,
     submissionError,
     isLiveConnected,
     lastSyncAt,
-    submitRating,
-    submitCrowdUpdate,
+    submitSubmission,
+    flagSubmission,
+    getFlagCount,
+    isSubmissionInvalid,
     getSubmissionsByLocation,
+    getRecentSubmissionsByLocation,
     getAverageRating,
     getLatestSubmission,
     getLatestComment,

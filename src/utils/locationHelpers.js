@@ -22,7 +22,7 @@ export function ratingColor(avgRating) {
 }
 
 export function ratingLabel(avgRating) {
-  return getNoiseLevel(avgRating)?.label ?? "No ratings yet";
+  return getNoiseLevel(avgRating)?.label ?? "No recent data";
 }
 
 export function matchesNoiseFilter(noiseFilter, avgRating) {
@@ -52,7 +52,7 @@ export function sortLocationsByNoise(locations, getAverageRating, sortOrder = "d
 }
 
 export function formatRelativeTime(timestamp) {
-  if (!timestamp) return "No ratings yet";
+  if (!timestamp) return "No recent data";
 
   const diffMs = Date.now() - timestamp;
   const diffSec = Math.floor(diffMs / 1000);

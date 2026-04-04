@@ -1,6 +1,6 @@
 <template>
   <header class="topbar">
-    <h1>Campus Noise Map</h1>
+    <h1>StudySpot</h1>
     <p class="subtitle">Interactive map with ≥10 study locations</p>
   </header>
 </template>

@@ -1,14 +1,13 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
 import CampusMap from "./components/CampusMap.vue";
-import CrowdUpdateForm from "./components/CrowdUpdateForm.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationList from "./components/LocationList.vue";
 import LocationSortBar from "./components/LocationSortBar.vue";
 import LocationSummary from "./components/LocationSummary.vue";
 import NoiseFilterBar from "./components/NoiseFilterBar.vue";
 import TypeFilterBar from "./components/TypeFilterBar.vue";
-import RatingForm from "./components/RatingForm.vue";
+import SubmissionForm from "./components/SubmissionForm.vue";
 import SubmissionList from "./components/SubmissionList.vue";
 import TopBar from "./components/TopBar.vue";
 import { useSubmissions } from "./composables/useSubmissions";
@@ -24,23 +23,23 @@ const noiseFilter = ref("all");
 const typeFilter = ref("all");
 const sortOrder = ref("default");
 const showSuccess = ref(false);
-const showCrowdSuccess = ref(false);
 const searchQuery = ref("");
 const selectedSearchLocation = ref(null);
 
 let successTimeoutId = null;
-let crowdSuccessTimeoutId = null;
 
 const {
   submissions,
-  isSubmittingNoise,
-  isSubmittingCrowd,
+  isSubmittingSubmission,
+  isSubmittingFlag,
   submissionError,
   isLiveConnected,
   lastSyncAt,
-  submitRating,
-  submitCrowdUpdate,
+  submitSubmission,
+  flagSubmission,
+  getFlagCount,
   getSubmissionsByLocation,
+  getRecentSubmissionsByLocation,
   getAverageRating,
   getLatestComment,
   lastUpdatedText,
@@ -91,7 +90,7 @@ const selectedAverageRating = computed(() =>
 
 const selectedSubmissionCount = computed(() =>
   selectedLocation.value
-    ? getSubmissionsByLocation(selectedLocation.value.id).length
+    ? getRecentSubmissionsByLocation(selectedLocation.value.id).length
     : 0
 );
 
@@ -102,12 +101,12 @@ const selectedLatestComment = computed(() =>
 const selectedLastUpdated = computed(() =>
   selectedLocation.value
     ? lastUpdatedText(selectedLocation.value.id)
-    : "No ratings yet"
+    : "No location selected"
 );
 
 const selectedSubmissions = computed(() =>
   selectedLocation.value
-    ? getSubmissionsByLocation(selectedLocation.value.id)
+    ? getRecentSubmissionsByLocation(selectedLocation.value.id)
     : []
 );
 
@@ -118,13 +117,24 @@ const selectedRatingLabel = computed(() =>
 const noiseSubmissions = computed(() =>
   selectedSubmissions.value.filter(
     (submission) =>
-      submission.rating !== null && submission.rating !== undefined
-  )
+      submission.rating !== null &&
+      submission.rating !== undefined &&
+      submission.comment &&
+      submission.comment.trim().length > 0
+  ).slice(0, 5)
 );
 
 const crowdSubmissions = computed(() =>
   selectedSubmissions.value.filter(
     (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
+  )
+);
+const noiseFlagCounts = computed(() =>
+  Object.fromEntries(
+    noiseSubmissions.value.map((submission) => [
+      submission.submissionId,
+      getFlagCount(submission.submissionId),
+    ])
   )
 );
 
@@ -134,15 +144,6 @@ function clearSuccessMessage() {
   if (successTimeoutId) {
     clearTimeout(successTimeoutId);
     successTimeoutId = null;
-  }
-}
-
-function clearCrowdSuccessMessage() {
-  showCrowdSuccess.value = false;
-
-  if (crowdSuccessTimeoutId) {
-    clearTimeout(crowdSuccessTimeoutId);
-    crowdSuccessTimeoutId = null;
   }
 }
 
@@ -160,13 +161,14 @@ function handleSearchSelect(location) {
   });
 }
 
-async function handleSubmitRating({ rating, comment }) {
+async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
   if (!selectedLocation.value) return;
 
   try {
-    await submitRating({
+    await submitSubmission({
       locationId: selectedLocation.value.id,
       rating,
+      crowdLevel,
       comment,
     });
 
@@ -181,29 +183,21 @@ async function handleSubmitRating({ rating, comment }) {
   }
 }
 
-async function handleSubmitCrowdUpdate({ crowdLevel }) {
-  if (!selectedLocation.value) return;
-
+async function handleFlagSubmission({ submissionId, locationId, reason, notes }) {
   try {
-    await submitCrowdUpdate({
-      locationId: selectedLocation.value.id,
-      crowdLevel,
+    await flagSubmission({
+      submissionId,
+      locationId,
+      reason,
+      notes,
     });
-
-    clearCrowdSuccessMessage();
-    showCrowdSuccess.value = true;
-    crowdSuccessTimeoutId = setTimeout(() => {
-      showCrowdSuccess.value = false;
-      crowdSuccessTimeoutId = null;
-    }, 3000);
   } catch (err) {
-    clearCrowdSuccessMessage();
+    console.error("Failed to submit flag:", err);
   }
 }
 
 watch(selectedLocation, () => {
   clearSuccessMessage();
-  clearCrowdSuccessMessage();
 });
 </script>
 
@@ -217,7 +211,6 @@ watch(selectedLocation, () => {
         >• Last synced: {{ new Date(lastSyncAt).toLocaleTimeString() }}</span
       >
     </p>
-
     <main class="content">
       <div class="workspace">
         <aside class="control-panel">
@@ -268,7 +261,7 @@ watch(selectedLocation, () => {
             :locations="visibleLocations"
             :submissions="submissions"
             :get-average-rating="getAverageRating"
-            :get-submissions-by-location="getSubmissionsByLocation"
+            :get-submissions-by-location="getRecentSubmissionsByLocation"
             :selected-search-location="selectedSearchLocation"
             @select-location="handleSelectLocation"
           />
@@ -288,25 +281,27 @@ watch(selectedLocation, () => {
           :latest-comment="selectedLatestComment"
         />
 
-        <SubmissionList :submissions="noiseSubmissions" type="noise" />
-
+        <SubmissionList
+          :submissions="noiseSubmissions"
+          type="noise"
+          :flag-counts="noiseFlagCounts"
+          :is-submitting-flag="isSubmittingFlag"
+          @flag-submission="handleFlagSubmission"
+        />
         <hr class="drawer-divider" />
 
-        <RatingForm
+        <SubmissionForm
           :location-id="selectedLocationId"
-          :is-submitting="isSubmittingNoise"
+          :is-submitting="isSubmittingSubmission"
           :show-success="showSuccess"
-          @submit="handleSubmitRating"
+          @submit="handleSubmitSubmission"
         />
 
         <hr class="drawer-divider" />
 
-        <SubmissionList :submissions="crowdSubmissions" type="crowd" />
-        <CrowdUpdateForm
-          :location-id="selectedLocationId"
-          :is-submitting="isSubmittingCrowd"
-          :show-success="showCrowdSuccess"
-          @submit="handleSubmitCrowdUpdate"
+        <SubmissionList
+          :submissions="crowdSubmissions"
+          type="crowd"
         />
       </LocationDrawer>
     </main>
