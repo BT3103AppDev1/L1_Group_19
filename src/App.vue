@@ -10,6 +10,8 @@ import TypeFilterBar from "./components/TypeFilterBar.vue";
 import SubmissionForm from "./components/SubmissionForm.vue";
 import SubmissionList from "./components/SubmissionList.vue";
 import TopBar from "./components/TopBar.vue";
+import AuthPanel from "./components/AuthPanel.vue";
+import { useAuth } from "./composables/useAuth";
 import { useSubmissions } from "./composables/useSubmissions";
 import { locations } from "./data/locations";
 import {
@@ -44,6 +46,16 @@ const {
   getLatestComment,
   lastUpdatedText,
 } = useSubmissions();
+
+const { user, authError, isAuthLoading, login, signup, logout } = useAuth();
+
+async function handleLogin({ email, password }) {
+  await login(email, password);
+}
+
+async function handleSignup({ email, password }) {
+  await signup(email, password);
+}
 
 const selectedLocationId = computed(() => selectedLocation.value?.id ?? "");
 
@@ -162,7 +174,7 @@ function handleSearchSelect(location) {
 }
 
 async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
-  if (!selectedLocation.value) return;
+  if (!selectedLocation.value || !user.value) return;
 
   try {
     await submitSubmission({
@@ -170,6 +182,10 @@ async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
       rating,
       crowdLevel,
       comment,
+      user: {
+        uid: user.value.uid,
+        email: user.value.email,
+      },
     });
 
     clearSuccessMessage();
@@ -214,6 +230,15 @@ watch(selectedLocation, () => {
     <main class="content">
       <div class="workspace">
         <aside class="control-panel">
+          <AuthPanel
+            :user="user"
+            :auth-error="authError"
+            :is-loading="isAuthLoading"
+            @login="handleLogin"
+            @signup="handleSignup"
+            @logout="logout"
+          />
+
           <div class="search-panel">
             <input
               v-model.trim="searchQuery"
@@ -290,7 +315,12 @@ watch(selectedLocation, () => {
         />
         <hr class="drawer-divider" />
 
+        <div v-if="!user" class="auth-required-panel">
+          <p>Please sign in to submit location updates and comments.</p>
+        </div>
+
         <SubmissionForm
+          v-else
           :location-id="selectedLocationId"
           :is-submitting="isSubmittingSubmission"
           :show-success="showSuccess"
@@ -452,6 +482,16 @@ body {
   .map-panel {
     min-height: 50dvh;
   }
+}
+
+.auth-required-panel {
+  background: #fff7e5;
+  border: 1px solid #f5d1a6;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 18px;
+  color: #6d4a1e;
+  font-size: 0.95rem;
 }
 
 .sync-status {

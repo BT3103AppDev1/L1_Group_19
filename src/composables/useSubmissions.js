@@ -232,7 +232,7 @@ export function useSubmissions() {
     return formatRelativeTime(latest.createdAt);
   }
 
-  async function submitSubmission({ locationId, rating, crowdLevel, comment }) {
+  async function submitSubmission({ locationId, rating, crowdLevel, comment, user }) {
     if (!locationId || !rating || !crowdLevel) return;
 
     isSubmittingSubmission.value = true;
@@ -247,6 +247,12 @@ export function useSubmissions() {
         comment: comment.trim(),
         crowdLevel,
         createdAt: serverTimestamp(),
+        submittedBy: user
+          ? {
+              uid: user.uid,
+              email: user.email ?? null,
+            }
+          : null,
       });
     } catch (err) {
       console.error("Failed to submit combined submission to Firestore:", err);
