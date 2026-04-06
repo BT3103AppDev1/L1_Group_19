@@ -40,6 +40,19 @@ function normalizeFlagSubmissionId(data) {
   );
 }
 
+function normalizeSubmittedBy(data) {
+  if (!data?.submittedBy || typeof data.submittedBy !== "object") {
+    return null;
+  }
+
+  const uid = data.submittedBy.uid ? String(data.submittedBy.uid) : "";
+  const email = data.submittedBy.email ? String(data.submittedBy.email) : null;
+
+  if (!uid) return null;
+
+  return { uid, email };
+}
+
 export function useSubmissions() {
   const submissions = ref([]);
   const submissionFlags = ref([]);
@@ -71,6 +84,7 @@ export function useSubmissions() {
             comment: data.comment ?? "",
             crowdLevel: data.crowdLevel ?? "",
             createdAt: toMillis(data.createdAt),
+            submittedBy: normalizeSubmittedBy(data),
           };
         })
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
@@ -120,6 +134,7 @@ export function useSubmissions() {
               comment: data.comment ?? "",
               crowdLevel: data.crowdLevel ?? "",
               createdAt: toMillis(data.createdAt),
+              submittedBy: normalizeSubmittedBy(data),
             };
           })
           .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
@@ -232,6 +247,20 @@ export function useSubmissions() {
     return formatRelativeTime(latest.createdAt);
   }
 
+  function hasUserSubmittedReview(uid) {
+    const normalizedUid = String(uid ?? "");
+    if (!normalizedUid) return false;
+
+    return submissions.value.some(
+      (submission) =>
+        String(submission?.submittedBy?.uid ?? "") === normalizedUid &&
+        Boolean(submission.locationId) &&
+        submission.rating !== null &&
+        !Number.isNaN(submission.rating) &&
+        Boolean(submission.crowdLevel)
+    );
+  }
+
   async function submitSubmission({ locationId, rating, crowdLevel, comment, user }) {
     if (!locationId || !rating || !crowdLevel) return;
 
@@ -328,5 +357,6 @@ export function useSubmissions() {
     getLatestSubmission,
     getLatestComment,
     lastUpdatedText,
+    hasUserSubmittedReview,
   };
 }

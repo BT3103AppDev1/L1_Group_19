@@ -45,6 +45,7 @@ const {
   getAverageRating,
   getLatestComment,
   lastUpdatedText,
+  hasUserSubmittedReview,
 } = useSubmissions();
 
 const { user, authError, isAuthLoading, login, signup, logout } = useAuth();
@@ -58,6 +59,10 @@ async function handleSignup({ email, password }) {
 }
 
 const selectedLocationId = computed(() => selectedLocation.value?.id ?? "");
+const hasSubmittedReview = computed(() =>
+  user.value?.uid ? hasUserSubmittedReview(user.value.uid) : false
+);
+const isDataAccessLocked = computed(() => !hasSubmittedReview.value);
 
 const filteredLocations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
@@ -75,18 +80,18 @@ const filteredLocations = computed(() => {
 const visibleLocations = computed(() => {
   const filtered = locations.filter((location) => {
     const averageRating = getAverageRating(location.id);
-    const matchesNoise = matchesNoiseFilter(noiseFilter.value, averageRating);
+    const matchesNoise = isDataAccessLocked.value
+      ? true
+      : matchesNoiseFilter(noiseFilter.value, averageRating);
     const matchesType =
       typeFilter.value === "all" || location.type === typeFilter.value;
 
     return matchesNoise && matchesType;
   });
 
-  const sorted = sortLocationsByNoise(
-    filtered,
-    getAverageRating,
-    sortOrder.value
-  );
+  const sorted = isDataAccessLocked.value
+    ? [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    : sortLocationsByNoise(filtered, getAverageRating, sortOrder.value);
 
   return sorted.map((location, index) => ({
     ...location,
@@ -271,12 +276,13 @@ watch(selectedLocation, () => {
             </div>
           </div>
 
-          <NoiseFilterBar v-model="noiseFilter" />
+          <NoiseFilterBar v-if="!isDataAccessLocked" v-model="noiseFilter" />
           <TypeFilterBar v-model="typeFilter" />
-          <LocationSortBar v-model="sortOrder" />
+          <LocationSortBar v-if="!isDataAccessLocked" v-model="sortOrder" />
 
           <LocationList
             :locations="visibleLocations"
+            :is-locked="isDataAccessLocked"
             @select-location="handleSelectLocation"
           />
         </aside>
@@ -288,6 +294,7 @@ watch(selectedLocation, () => {
             :get-average-rating="getAverageRating"
             :get-submissions-by-location="getRecentSubmissionsByLocation"
             :selected-search-location="selectedSearchLocation"
+            :is-locked="isDataAccessLocked"
             @select-location="handleSelectLocation"
           />
         </section>
@@ -298,6 +305,7 @@ watch(selectedLocation, () => {
         @close="selectedLocation = null"
       >
         <LocationSummary
+          v-if="!isDataAccessLocked"
           :location="selectedLocation"
           :average-rating="selectedAverageRating"
           :rating-label-text="selectedRatingLabel"
@@ -305,8 +313,17 @@ watch(selectedLocation, () => {
           :last-updated="selectedLastUpdated"
           :latest-comment="selectedLatestComment"
         />
+        <div v-else class="auth-required-panel">
+          <p v-if="!user">
+            Sign in and submit your first review (noise + crowd) to unlock location and noise statistics.
+          </p>
+          <p v-else>
+            Submit your first review (noise + crowd) to unlock location and noise statistics.
+          </p>
+        </div>
 
         <SubmissionList
+          v-if="!isDataAccessLocked"
           :submissions="noiseSubmissions"
           type="noise"
           :flag-counts="noiseFlagCounts"
@@ -315,12 +332,12 @@ watch(selectedLocation, () => {
         />
         <hr class="drawer-divider" />
 
-        <div v-if="!user" class="auth-required-panel">
+        <div v-if="!user && !isDataAccessLocked" class="auth-required-panel">
           <p>Please sign in to submit location updates and comments.</p>
         </div>
 
         <SubmissionForm
-          v-else
+          v-else-if="user"
           :location-id="selectedLocationId"
           :is-submitting="isSubmittingSubmission"
           :show-success="showSuccess"
@@ -330,6 +347,7 @@ watch(selectedLocation, () => {
         <hr class="drawer-divider" />
 
         <SubmissionList
+          v-if="!isDataAccessLocked"
           :submissions="crowdSubmissions"
           type="crowd"
         />

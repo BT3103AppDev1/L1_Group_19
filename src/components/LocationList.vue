@@ -4,6 +4,10 @@ defineProps({
     type: Array,
     required: true,
   },
+  isLocked: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["select-location"]);
@@ -17,7 +21,10 @@ function formatAverage(averageRating) {
   <section class="location-list-shell" aria-label="Sorted location list">
     <div class="location-list-header">
       <h2>Locations</h2>
-      <p>Compare spots from the list and tap one to inspect details on the map.</p>
+      <p v-if="isLocked">
+        Submit your first review to unlock location and noise statistics.
+      </p>
+      <p v-else>Compare spots from the list and tap one to inspect details on the map.</p>
     </div>
 
     <div v-if="locations.length" class="location-list">
@@ -36,8 +43,10 @@ function formatAverage(averageRating) {
         </div>
 
         <div class="location-metrics">
-          <span class="noise-label">{{ location.noiseLabel }}</span>
-          <span class="noise-rating">{{ formatAverage(location.averageRating) }}</span>
+          <span class="noise-label">{{ isLocked ? "Data locked" : location.noiseLabel }}</span>
+          <span class="noise-rating">
+            {{ isLocked ? "Submit 1 review" : formatAverage(location.averageRating) }}
+          </span>
         </div>
       </button>
     </div>

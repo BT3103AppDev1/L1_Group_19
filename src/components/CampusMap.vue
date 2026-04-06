@@ -25,6 +25,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  isLocked: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["select-location"]);
@@ -56,12 +60,13 @@ function renderMarkers() {
   props.locations.forEach((location) => {
     const avgRating = props.getAverageRating(location.id);
     const submissionCount = props.getSubmissionsByLocation(location.id).length;
+    const markerFill = props.isLocked ? "#9aa3b2" : ratingColor(avgRating);
 
     const marker = L.circleMarker([location.lat, location.lng], {
       radius: 10,
       weight: 1,
       color: "#1f2a44",
-      fillColor: ratingColor(avgRating),
+      fillColor: markerFill,
       fillOpacity: 0.9,
     });
 
@@ -69,13 +74,18 @@ function renderMarkers() {
       emit("select-location", location);
     });
 
-    marker.bindTooltip(
-      `<strong>${location.name}</strong><br>
+    const tooltipHtml = props.isLocked
+      ? `<strong>${location.name}</strong><br>Submit your first review to unlock statistics.`
+      : `<strong>${location.name}</strong><br>
        Average rating: ${avgRating === null ? "N/A" : avgRating.toFixed(1)}
        (${ratingLabel(avgRating)})<br>
-       Submissions: ${submissionCount}`,
-      { direction: "top", offset: [0, -8], sticky: true }
-    );
+       Submissions: ${submissionCount}`;
+
+    marker.bindTooltip(tooltipHtml, {
+      direction: "top",
+      offset: [0, -8],
+      sticky: true,
+    });
 
     marker.addTo(markersLayer.value);
   });
@@ -125,7 +135,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-shell">
     <div ref="mapElement" class="map-canvas" aria-label="Campus map"></div>
-    <div class="map-legend-overlay">
+    <div v-if="!isLocked" class="map-legend-overlay">
       <MapLegend />
     </div>
   </div>
