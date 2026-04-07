@@ -117,7 +117,8 @@ watch(
   (location) => {
     if (!location || !map.value) return;
 
-    map.value.setView([location.lat, location.lng], 17);
+    map.value.stop();
+    map.value.setView([location.lat, location.lng], 17, { animate: false });
     emit("select-location", location);
   }
 );

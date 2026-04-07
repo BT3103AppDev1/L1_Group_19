@@ -11,7 +11,7 @@ import {
 import { db } from "../firebase";
 import { formatRelativeTime } from "../utils/locationHelpers";
 
-const RECENT_SUBMISSION_WINDOW_MS = 60 * 60 * 1000;
+const RECENT_SUBMISSION_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 function toMillis(timestamp) {
   if (!timestamp) return null;
@@ -73,20 +73,24 @@ export function useSubmissions() {
         .map((doc) => {
           const data = doc.data();
 
-          return {
-            id: doc.id,
-            submissionId: normalizeSubmissionId(doc.id, data),
-            locationId: data.locationId,
-            rating:
-              data.rating !== undefined && data.rating !== null
-                ? Number(data.rating)
-                : null,
-            comment: data.comment ?? "",
-            crowdLevel: data.crowdLevel ?? "",
-            createdAt: toMillis(data.createdAt),
-            submittedBy: normalizeSubmittedBy(data),
-          };
-        })
+        return {
+          id: doc.id,
+          submissionId: normalizeSubmissionId(doc.id, data),
+          locationId: data.locationId,
+          rating:
+            data.rating !== undefined && data.rating !== null
+              ? Number(data.rating)
+              : null,
+          comment: data.comment ?? "",
+          crowdLevel: data.crowdLevel ?? "",
+          createdAt: toMillis(data.createdAt),
+          unlockUntil:
+            data.unlockUntil !== undefined && data.unlockUntil !== null
+              ? Number(data.unlockUntil)
+              : 0,
+          submittedBy: normalizeSubmittedBy(data),
+        };
+      })
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
       lastSyncAt.value = Date.now();
@@ -129,11 +133,15 @@ export function useSubmissions() {
               locationId: data.locationId,
               rating:
                 data.rating !== undefined && data.rating !== null
-                  ? Number(data.rating)
-                  : null,
+                ? Number(data.rating)
+                : null,
               comment: data.comment ?? "",
               crowdLevel: data.crowdLevel ?? "",
               createdAt: toMillis(data.createdAt),
+              unlockUntil:
+                data.unlockUntil !== undefined && data.unlockUntil !== null
+                  ? Number(data.unlockUntil)
+                  : 0,
               submittedBy: normalizeSubmittedBy(data),
             };
           })
@@ -261,6 +269,27 @@ export function useSubmissions() {
     );
   }
 
+  function getUserUnlockUntil(uid) {
+    const normalizedUid = String(uid ?? "");
+    if (!normalizedUid) return 0;
+
+    const userSubs = submissions.value.filter(
+      (submission) =>
+        String(submission?.submittedBy?.uid ?? "") === normalizedUid &&
+        submission.unlockUntil
+    );
+
+    if (!userSubs.length) return 0;
+
+    const latest = userSubs.reduce((latestSubmission, currentSubmission) =>
+      (currentSubmission.unlockUntil ?? 0) > (latestSubmission.unlockUntil ?? 0)
+        ? currentSubmission
+        : latestSubmission
+    );
+
+    return latest.unlockUntil ?? 0;
+  }
+
   async function submitSubmission({ locationId, rating, crowdLevel, comment, user }) {
     if (!locationId || !rating || !crowdLevel) return;
 
@@ -269,6 +298,9 @@ export function useSubmissions() {
     try {
       const submissionRef = doc(collection(db, "submissions"));
 
+      const now = Date.now();
+      const unlockUntil = now + 72 * 60 * 60 * 1000; 
+
       await setDoc(submissionRef, {
         submissionId: submissionRef.id,
         locationId,
@@ -276,6 +308,8 @@ export function useSubmissions() {
         comment: comment.trim(),
         crowdLevel,
         createdAt: serverTimestamp(),
+        createdAtMs: now,
+        unlockUntil,
         submittedBy: user
           ? {
               uid: user.uid,
@@ -283,6 +317,9 @@ export function useSubmissions() {
             }
           : null,
       });
+
+      localStorage.setItem("unlockUntil", String(unlockUntil));
+      return unlockUntil;
     } catch (err) {
       console.error("Failed to submit combined submission to Firestore:", err);
       submissionError.value = err;
@@ -292,28 +329,28 @@ export function useSubmissions() {
     }
   }
 
-  async function flagSubmission({ submissionId, locationId, reason, notes = "" }) {
-    if (!submissionId || !locationId || !reason) return;
+    async function flagSubmission({ submissionId, locationId, reason, notes = "" }) {
+      if (!submissionId || !locationId || !reason) return;
 
-    isSubmittingFlag.value = true;
+      isSubmittingFlag.value = true;
 
-    try {
-      await addDoc(collection(db, "submission_flags"), {
-        submissionId,
-        locationId,
-        submissionType: "noise",
-        reason,
-        notes: notes.trim(),
-        createdAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.error("Failed to flag submission in Firestore:", err);
-      submissionError.value = err;
-      throw err;
-    } finally {
-      isSubmittingFlag.value = false;
+      try {
+        await addDoc(collection(db, "submission_flags"), {
+          submissionId,
+          locationId,
+          submissionType: "noise",
+          reason,
+          notes: notes.trim(),
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error("Failed to flag submission in Firestore:", err);
+        submissionError.value = err;
+        throw err;
+      } finally {
+        isSubmittingFlag.value = false;
+      }
     }
-  }
 
   function handleVisibilityChange() {
     if (document.visibilityState === "visible") {
@@ -358,5 +395,6 @@ export function useSubmissions() {
     getLatestComment,
     lastUpdatedText,
     hasUserSubmittedReview,
+    getUserUnlockUntil,
   };
 }

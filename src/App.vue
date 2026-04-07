@@ -45,7 +45,7 @@ const {
   getAverageRating,
   getLatestComment,
   lastUpdatedText,
-  hasUserSubmittedReview,
+  getUserUnlockUntil,
 } = useSubmissions();
 
 const { user, authError, isAuthLoading, login, signup, logout } = useAuth();
@@ -58,11 +58,20 @@ async function handleSignup({ email, password }) {
   await signup(email, password);
 }
 
+const localUnlockUntil = ref(Number(localStorage.getItem("unlockUntil") || 0));
+
 const selectedLocationId = computed(() => selectedLocation.value?.id ?? "");
-const hasSubmittedReview = computed(() =>
-  user.value?.uid ? hasUserSubmittedReview(user.value.uid) : false
+const unlockUntil = computed(() =>
+  user.value?.uid ? getUserUnlockUntil(user.value.uid) : 0
 );
-const isDataAccessLocked = computed(() => !hasSubmittedReview.value);
+
+const effectiveUnlockUntil = computed(() =>
+  Math.max(unlockUntil.value, localUnlockUntil.value)
+);
+
+const isDataAccessLocked = computed(() => {
+  return Date.now() > effectiveUnlockUntil.value;
+});
 
 const filteredLocations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
@@ -182,7 +191,7 @@ async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
   if (!selectedLocation.value || !user.value) return;
 
   try {
-    await submitSubmission({
+    const newUnlockUntil = await submitSubmission({
       locationId: selectedLocation.value.id,
       rating,
       crowdLevel,
@@ -192,6 +201,8 @@ async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
         email: user.value.email,
       },
     });
+
+    localUnlockUntil.value = Number(newUnlockUntil || 0);
 
     clearSuccessMessage();
     showSuccess.value = true;
@@ -220,6 +231,23 @@ async function handleFlagSubmission({ submissionId, locationId, reason, notes })
 watch(selectedLocation, () => {
   clearSuccessMessage();
 });
+
+watch(
+  [user, submissions],
+  () => {
+    if (!user.value?.uid) {
+      localUnlockUntil.value = 0;
+      return;
+    }
+
+    const firestoreUnlockUntil = getUserUnlockUntil(user.value.uid);
+    const storedUnlockUntil = Number(localStorage.getItem("unlockUntil") || 0);
+
+    localUnlockUntil.value = Math.max(firestoreUnlockUntil, storedUnlockUntil);
+  },
+  { immediate: true }
+);
+
 </script>
 
 <template>
