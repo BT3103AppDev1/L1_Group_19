@@ -44,6 +44,7 @@ async function logout() {
 
   try {
     await signOut(auth);
+    localStorage.removeItem("unlockUntil");
   } catch (err) {
     authError.value = err;
     throw err;

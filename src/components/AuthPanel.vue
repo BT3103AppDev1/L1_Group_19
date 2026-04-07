@@ -11,9 +11,25 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  locationCoords: {
+    type: Object,
+    default: null,
+  },
+  isLocating: {
+    type: Boolean,
+    default: false,
+  },
+  locationError: {
+    type: String,
+    default: "",
+  },
+  lastLocationUpdatedAt: {
+    type: Number,
+    default: null,
+  },
 });
 
-const emit = defineEmits(["login", "signup", "logout"]);
+const emit = defineEmits(["login", "signup", "logout", "request-location"]);
 
 const mode = ref("login");
 const email = ref("");
@@ -127,6 +143,29 @@ watch(
         </button>
       </form>
     </div>
+
+    <div class="location-panel">
+      <div class="location-panel-copy">
+        <h3>Device location</h3>
+        <p v-if="props.locationCoords">
+          Lat {{ props.locationCoords.latitude.toFixed(5) }}, Lng {{ props.locationCoords.longitude.toFixed(5) }}
+        </p>
+        <p v-else-if="props.locationError">{{ props.locationError }}</p>
+        <p v-else>Allow location access so proximity checks can be added next.</p>
+        <small v-if="props.lastLocationUpdatedAt">
+          Last updated {{ new Date(props.lastLocationUpdatedAt).toLocaleTimeString() }}
+        </small>
+      </div>
+
+      <button
+        type="button"
+        class="secondary-btn"
+        :disabled="props.isLocating"
+        @click="$emit('request-location')"
+      >
+        {{ props.isLocating ? "Locating..." : props.locationCoords ? "Refresh location" : "Enable location" }}
+      </button>
+    </div>
   </section>
 </template>
 
@@ -221,5 +260,49 @@ watch(
   margin: 0;
   color: #b42318;
   font-size: 0.92rem;
+}
+
+.location-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eef0f6;
+  display: grid;
+  gap: 12px;
+}
+
+.location-panel-copy h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.location-panel-copy p,
+.location-panel-copy small {
+  display: block;
+}
+
+.location-panel-copy p {
+  margin: 0;
+  color: #5a667a;
+  font-size: 0.92rem;
+}
+
+.location-panel-copy small {
+  margin-top: 6px;
+  color: #667085;
+}
+
+.secondary-btn {
+  border: 1px solid #d7dce5;
+  border-radius: 12px;
+  background: white;
+  color: #122033;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.secondary-btn:disabled {
+  color: #98a2b3;
+  cursor: not-allowed;
 }
 </style>

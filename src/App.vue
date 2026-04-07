@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import CampusMap from "./components/CampusMap.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationList from "./components/LocationList.vue";
@@ -12,6 +12,7 @@ import SubmissionList from "./components/SubmissionList.vue";
 import TopBar from "./components/TopBar.vue";
 import AuthPanel from "./components/AuthPanel.vue";
 import { useAuth } from "./composables/useAuth";
+import { useGeolocation } from "./composables/useGeolocation";
 import { useSubmissions } from "./composables/useSubmissions";
 import { locations } from "./data/locations";
 import {
@@ -49,6 +50,15 @@ const {
 } = useSubmissions();
 
 const { user, authError, isAuthLoading, login, signup, logout } = useAuth();
+const {
+  coords,
+  locationError,
+  isLocating,
+  lastUpdatedAt: lastLocationUpdatedAt,
+  requestLocation,
+  startTrackingLocation,
+  stopTrackingLocation,
+} = useGeolocation();
 
 async function handleLogin({ email, password }) {
   await login(email, password);
@@ -68,9 +78,11 @@ const unlockUntil = computed(() =>
 const effectiveUnlockUntil = computed(() =>
   Math.max(unlockUntil.value, localUnlockUntil.value)
 );
+const now = ref(Date.now());
+let unlockTimerId = null;
 
 const isDataAccessLocked = computed(() => {
-  return Date.now() > effectiveUnlockUntil.value;
+  return now.value > effectiveUnlockUntil.value;
 });
 
 const filteredLocations = computed(() => {
@@ -228,6 +240,31 @@ async function handleFlagSubmission({ submissionId, locationId, reason, notes })
   }
 }
 
+function handleRequestLocation() {
+  requestLocation();
+  startTrackingLocation();
+}
+
+function clearExpiredUnlock() {
+  if (effectiveUnlockUntil.value && now.value > effectiveUnlockUntil.value) {
+    localUnlockUntil.value = 0;
+    localStorage.removeItem("unlockUntil");
+  }
+}
+
+function startUnlockTimer() {
+  stopUnlockTimer();
+  unlockTimerId = window.setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
+}
+
+function stopUnlockTimer() {
+  if (!unlockTimerId) return;
+  window.clearInterval(unlockTimerId);
+  unlockTimerId = null;
+}
+
 watch(selectedLocation, () => {
   clearSuccessMessage();
 });
@@ -248,6 +285,19 @@ watch(
   { immediate: true }
 );
 
+watch([now, effectiveUnlockUntil], () => {
+  clearExpiredUnlock();
+}, { immediate: true });
+
+onMounted(() => {
+  startUnlockTimer();
+});
+
+onBeforeUnmount(() => {
+  stopUnlockTimer();
+  stopTrackingLocation();
+});
+
 </script>
 
 <template>
@@ -267,9 +317,14 @@ watch(
             :user="user"
             :auth-error="authError"
             :is-loading="isAuthLoading"
+            :location-coords="coords"
+            :is-locating="isLocating"
+            :location-error="locationError"
+            :last-location-updated-at="lastLocationUpdatedAt"
             @login="handleLogin"
             @signup="handleSignup"
             @logout="logout"
+            @request-location="handleRequestLocation"
           />
 
           <div class="search-panel">
