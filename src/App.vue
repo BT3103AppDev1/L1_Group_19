@@ -1,5 +1,12 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import CampusMap from "./components/CampusMap.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationList from "./components/LocationList.vue";
@@ -59,6 +66,9 @@ const {
   startTrackingLocation,
   stopTrackingLocation,
 } = useGeolocation();
+
+const proximityError = ref("");
+const PROXIMITY_RADIUS_METERS = 150;
 
 async function handleLogin({ email, password }) {
   await login(email, password);
@@ -153,13 +163,15 @@ const selectedRatingLabel = computed(() =>
 );
 
 const noiseSubmissions = computed(() =>
-  selectedSubmissions.value.filter(
-    (submission) =>
-      submission.rating !== null &&
-      submission.rating !== undefined &&
-      submission.comment &&
-      submission.comment.trim().length > 0
-  ).slice(0, 5)
+  selectedSubmissions.value
+    .filter(
+      (submission) =>
+        submission.rating !== null &&
+        submission.rating !== undefined &&
+        submission.comment &&
+        submission.comment.trim().length > 0
+    )
+    .slice(0, 5)
 );
 
 const crowdSubmissions = computed(() =>
@@ -175,6 +187,53 @@ const noiseFlagCounts = computed(() =>
     ])
   )
 );
+
+function toRad(value) {
+  return (value * Math.PI) / 180;
+}
+
+function getDistanceInMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function ensureNearbySelectedLocation() {
+  proximityError.value = "";
+
+  if (!selectedLocation.value) {
+    proximityError.value = "Please select a location first.";
+    return false;
+  }
+
+  if (!coords.value) {
+    requestLocation();
+
+    proximityError.value =
+      "Checking your location. Please allow location access and try again.";
+    return false;
+  }
+
+  const distance = getDistanceInMeters(
+    coords.value.latitude,
+    coords.value.longitude,
+    selectedLocation.value.lat,
+    selectedLocation.value.lng
+  );
+
+  if (distance > PROXIMITY_RADIUS_METERS) {
+    proximityError.value = `You must be within ${PROXIMITY_RADIUS_METERS}m of this location to submit.`;
+    return false;
+  }
+
+  return true;
+}
 
 function clearSuccessMessage() {
   showSuccess.value = false;
@@ -202,6 +261,9 @@ function handleSearchSelect(location) {
 async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
   if (!selectedLocation.value || !user.value) return;
 
+  const isNearby = await ensureNearbySelectedLocation();
+  if (!isNearby) return;
+
   try {
     const newUnlockUntil = await submitSubmission({
       locationId: selectedLocation.value.id,
@@ -227,7 +289,12 @@ async function handleSubmitSubmission({ rating, crowdLevel, comment }) {
   }
 }
 
-async function handleFlagSubmission({ submissionId, locationId, reason, notes }) {
+async function handleFlagSubmission({
+  submissionId,
+  locationId,
+  reason,
+  notes,
+}) {
   try {
     await flagSubmission({
       submissionId,
@@ -267,6 +334,7 @@ function stopUnlockTimer() {
 
 watch(selectedLocation, () => {
   clearSuccessMessage();
+  proximityError.value = "";
 });
 
 watch(
@@ -285,9 +353,13 @@ watch(
   { immediate: true }
 );
 
-watch([now, effectiveUnlockUntil], () => {
-  clearExpiredUnlock();
-}, { immediate: true });
+watch(
+  [now, effectiveUnlockUntil],
+  () => {
+    clearExpiredUnlock();
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   startUnlockTimer();
@@ -297,7 +369,6 @@ onBeforeUnmount(() => {
   stopUnlockTimer();
   stopTrackingLocation();
 });
-
 </script>
 
 <template>
@@ -398,10 +469,12 @@ onBeforeUnmount(() => {
         />
         <div v-else class="auth-required-panel">
           <p v-if="!user">
-            Sign in and submit your first review (noise + crowd) to unlock location and noise statistics.
+            Sign in and submit your first review (noise + crowd) to unlock
+            location and noise statistics.
           </p>
           <p v-else>
-            Submit your first review (noise + crowd) to unlock location and noise statistics.
+            Submit your first review (noise + crowd) to unlock location and
+            noise statistics.
           </p>
         </div>
 
@@ -418,6 +491,10 @@ onBeforeUnmount(() => {
         <div v-if="!user && !isDataAccessLocked" class="auth-required-panel">
           <p>Please sign in to submit location updates and comments.</p>
         </div>
+
+        <p v-if="proximityError || locationError" class="proximity-error">
+          {{ proximityError || locationError }}
+        </p>
 
         <SubmissionForm
           v-else-if="user"
@@ -601,4 +678,10 @@ body {
   color: #5a667a;
 }
 
+.proximity-error {
+  margin: 0 0 12px 0;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+}
 </style>

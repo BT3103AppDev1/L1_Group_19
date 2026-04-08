@@ -12,7 +12,7 @@ import { db } from "../firebase";
 import { formatRelativeTime } from "../utils/locationHelpers";
 
 const RECENT_SUBMISSION_WINDOW_MS = 72 * 60 * 60 * 1000;
-
+const CROWD_CATEGORIES = ["Plenty of seats", "Limited seats", "Full"];
 function toMillis(timestamp) {
   if (!timestamp) return null;
 
@@ -292,7 +292,13 @@ export function useSubmissions() {
 
   async function submitSubmission({ locationId, rating, crowdLevel, comment, user }) {
     if (!locationId || !rating || !crowdLevel) return;
-
+  
+    if (!CROWD_CATEGORIES.includes(crowdLevel)) {
+      const err = new Error("Invalid crowd category.");
+      submissionError.value = err;
+      throw err;
+    }
+  
     isSubmittingSubmission.value = true;
 
     try {
@@ -396,5 +402,6 @@ export function useSubmissions() {
     lastUpdatedText,
     hasUserSubmittedReview,
     getUserUnlockUntil,
+    CROWD_CATEGORIES,
   };
 }
