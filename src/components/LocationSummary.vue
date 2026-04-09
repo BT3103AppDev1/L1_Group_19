@@ -12,6 +12,10 @@ defineProps({
     type: String,
     required: true,
   },
+  crowdLabelText: {
+    type: String,
+    default: "Unknown",
+  },
   submissionCount: {
     type: Number,
     required: true,
@@ -43,6 +47,11 @@ defineProps({
     <p class="drawer-row metric-row">
       <span class="label">Noise Level:</span>
       <span class="metric-value metric-level">{{ ratingLabelText }}</span>
+    </p>
+
+    <p class="drawer-row metric-row">
+      <span class="label">Crowd Level:</span>
+      <span class="metric-value metric-level">{{ crowdLabelText }}</span>
     </p>
 
     <p class="drawer-row">

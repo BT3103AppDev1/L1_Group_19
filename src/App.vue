@@ -8,6 +8,7 @@ import {
   watch,
 } from "vue";
 import CampusMap from "./components/CampusMap.vue";
+import CrowdFilterBar from "./components/CrowdFilterBar.vue";
 import LocationDrawer from "./components/LocationDrawer.vue";
 import LocationList from "./components/LocationList.vue";
 import LocationSortBar from "./components/LocationSortBar.vue";
@@ -23,6 +24,7 @@ import { useGeolocation } from "./composables/useGeolocation";
 import { useSubmissions } from "./composables/useSubmissions";
 import { locations } from "./data/locations";
 import {
+  matchesCrowdFilter,
   matchesNoiseFilter,
   ratingLabel,
   sortLocationsByNoise,
@@ -30,6 +32,7 @@ import {
 
 const selectedLocation = ref(null);
 const noiseFilter = ref("all");
+const crowdFilter = ref("all");
 const typeFilter = ref("all");
 const sortOrder = ref("default");
 const showSuccess = ref(false);
@@ -50,6 +53,7 @@ const {
   getFlagCount,
   getSubmissionsByLocation,
   getRecentSubmissionsByLocation,
+  getDerivedCrowdStatus,
   getAverageRating,
   getLatestComment,
   lastUpdatedText,
@@ -68,7 +72,7 @@ const {
 } = useGeolocation();
 
 const proximityError = ref("");
-const PROXIMITY_RADIUS_METERS = 150;
+const PROXIMITY_RADIUS_METERS = 150000;
 
 async function handleLogin({ email, password }) {
   await login(email, password);
@@ -111,13 +115,17 @@ const filteredLocations = computed(() => {
 const visibleLocations = computed(() => {
   const filtered = locations.filter((location) => {
     const averageRating = getAverageRating(location.id);
+    const crowdLabel = getDerivedCrowdStatus(location.id);
     const matchesNoise = isDataAccessLocked.value
       ? true
       : matchesNoiseFilter(noiseFilter.value, averageRating);
+    const matchesCrowd = isDataAccessLocked.value
+      ? true
+      : matchesCrowdFilter(crowdFilter.value, crowdLabel);
     const matchesType =
       typeFilter.value === "all" || location.type === typeFilter.value;
 
-    return matchesNoise && matchesType;
+    return matchesNoise && matchesCrowd && matchesType;
   });
 
   const sorted = isDataAccessLocked.value
@@ -129,41 +137,32 @@ const visibleLocations = computed(() => {
     rank: index + 1,
     averageRating: getAverageRating(location.id),
     noiseLabel: ratingLabel(getAverageRating(location.id)),
+    crowdLabel: getDerivedCrowdStatus(location.id),
   }));
 });
 
-const selectedAverageRating = computed(() =>
-  selectedLocation.value ? getAverageRating(selectedLocation.value.id) : null
-);
+const selectedLocationSummary = computed(() => {
+  if (!selectedLocation.value?.id) return null;
 
-const selectedSubmissionCount = computed(() =>
-  selectedLocation.value
-    ? getRecentSubmissionsByLocation(selectedLocation.value.id).length
-    : 0
-);
+  const locationId = selectedLocation.value.id;
+  const submissions = getRecentSubmissionsByLocation(locationId);
+  const averageRating = getAverageRating(locationId);
 
-const selectedLatestComment = computed(() =>
-  selectedLocation.value ? getLatestComment(selectedLocation.value.id) : ""
-);
-
-const selectedLastUpdated = computed(() =>
-  selectedLocation.value
-    ? lastUpdatedText(selectedLocation.value.id)
-    : "No location selected"
-);
-
-const selectedSubmissions = computed(() =>
-  selectedLocation.value
-    ? getRecentSubmissionsByLocation(selectedLocation.value.id)
-    : []
-);
-
-const selectedRatingLabel = computed(() =>
-  ratingLabel(selectedAverageRating.value)
-);
+  return {
+    location: selectedLocation.value,
+    locationId,
+    submissions,
+    averageRating,
+    ratingLabel: ratingLabel(averageRating),
+    crowdLabel: getDerivedCrowdStatus(locationId),
+    submissionCount: submissions.length,
+    lastUpdated: lastUpdatedText(locationId),
+    latestComment: getLatestComment(locationId) ?? "",
+  };
+});
 
 const noiseSubmissions = computed(() =>
-  selectedSubmissions.value
+  (selectedLocationSummary.value?.submissions ?? [])
     .filter(
       (submission) =>
         submission.rating !== null &&
@@ -175,9 +174,9 @@ const noiseSubmissions = computed(() =>
 );
 
 const crowdSubmissions = computed(() =>
-  selectedSubmissions.value.filter(
+  (selectedLocationSummary.value?.submissions ?? []).filter(
     (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
-  )
+  ).slice(0, 5)
 );
 const noiseFlagCounts = computed(() =>
   Object.fromEntries(
@@ -431,6 +430,7 @@ onBeforeUnmount(() => {
           </div>
 
           <NoiseFilterBar v-if="!isDataAccessLocked" v-model="noiseFilter" />
+          <CrowdFilterBar v-if="!isDataAccessLocked" v-model="crowdFilter" />
           <TypeFilterBar v-model="typeFilter" />
           <LocationSortBar v-if="!isDataAccessLocked" v-model="sortOrder" />
 
@@ -446,6 +446,7 @@ onBeforeUnmount(() => {
             :locations="visibleLocations"
             :submissions="submissions"
             :get-average-rating="getAverageRating"
+            :get-derived-crowd-status="getDerivedCrowdStatus"
             :get-submissions-by-location="getRecentSubmissionsByLocation"
             :selected-search-location="selectedSearchLocation"
             :is-locked="isDataAccessLocked"
@@ -459,13 +460,14 @@ onBeforeUnmount(() => {
         @close="selectedLocation = null"
       >
         <LocationSummary
-          v-if="!isDataAccessLocked"
-          :location="selectedLocation"
-          :average-rating="selectedAverageRating"
-          :rating-label-text="selectedRatingLabel"
-          :submission-count="selectedSubmissionCount"
-          :last-updated="selectedLastUpdated"
-          :latest-comment="selectedLatestComment"
+          v-if="!isDataAccessLocked && selectedLocationSummary"
+          :location="selectedLocationSummary.location"
+          :average-rating="selectedLocationSummary.averageRating"
+          :rating-label-text="selectedLocationSummary.ratingLabel"
+          :crowd-label-text="selectedLocationSummary.crowdLabel"
+          :submission-count="selectedLocationSummary.submissionCount"
+          :last-updated="selectedLocationSummary.lastUpdated"
+          :latest-comment="selectedLocationSummary.latestComment"
         />
         <div v-else class="auth-required-panel">
           <p v-if="!user">

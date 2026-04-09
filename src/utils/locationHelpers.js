@@ -5,6 +5,13 @@ export const NOISE_LEVEL_SCALE = [
   { value: "very-loud", label: "Very loud", min: 4.5, max: 5 },
 ];
 
+export const CROWD_FILTER_OPTIONS = [
+  { value: "all", label: "All crowd levels" },
+  { value: "Plenty of seats", label: "Plenty of seats" },
+  { value: "Limited seats", label: "Limited seats" },
+  { value: "Full", label: "Full" },
+];
+
 export function getNoiseLevel(avgRating) {
   if (avgRating === null) return null;
   if (avgRating <= 2) return NOISE_LEVEL_SCALE[0];
@@ -30,6 +37,13 @@ export function matchesNoiseFilter(noiseFilter, avgRating) {
   if (avgRating === null) return false;
 
   return getNoiseLevel(avgRating)?.value === noiseFilter;
+}
+
+export function matchesCrowdFilter(crowdFilter, crowdLabel) {
+  if (crowdFilter === "all") return true;
+  if (!crowdLabel || crowdLabel === "Unknown") return false;
+
+  return crowdLabel === crowdFilter;
 }
 
 export function sortLocationsByNoise(locations, getAverageRating, sortOrder = "default") {

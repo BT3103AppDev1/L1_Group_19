@@ -47,6 +47,7 @@ function formatAverage(averageRating) {
           <span class="noise-rating">
             {{ isLocked ? "Submit 1 review" : formatAverage(location.averageRating) }}
           </span>
+          <span v-if="!isLocked" class="crowd-label">{{ location.crowdLabel }}</span>
         </div>
       </button>
     </div>
@@ -149,6 +150,12 @@ function formatAverage(averageRating) {
 }
 
 .noise-rating {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #5a667a;
+}
+
+.crowd-label {
   margin-top: 2px;
   font-size: 12px;
   color: #5a667a;

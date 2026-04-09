@@ -17,6 +17,10 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  getDerivedCrowdStatus: {
+    type: Function,
+    required: true,
+  },
   getSubmissionsByLocation: {
     type: Function,
     required: true,
@@ -59,6 +63,7 @@ function renderMarkers() {
 
   props.locations.forEach((location) => {
     const avgRating = props.getAverageRating(location.id);
+    const crowdStatus = props.getDerivedCrowdStatus(location.id);
     const submissionCount = props.getSubmissionsByLocation(location.id).length;
     const markerFill = props.isLocked ? "#9aa3b2" : ratingColor(avgRating);
 
@@ -79,6 +84,7 @@ function renderMarkers() {
       : `<strong>${location.name}</strong><br>
        Average rating: ${avgRating === null ? "N/A" : avgRating.toFixed(1)}
        (${ratingLabel(avgRating)})<br>
+       Crowd: ${crowdStatus}<br>
        Submissions: ${submissionCount}`;
 
     marker.bindTooltip(tooltipHtml, {

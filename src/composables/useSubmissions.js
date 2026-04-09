@@ -11,8 +11,15 @@ import {
 import { db } from "../firebase";
 import { formatRelativeTime } from "../utils/locationHelpers";
 
-const RECENT_SUBMISSION_WINDOW_MS = 72 * 60 * 60 * 1000;
+const RECENT_SUBMISSION_WINDOW_MS = 180 * 60 * 1000;
+const CROWD_FRESHNESS_WINDOW_MS = 180 * 60 * 1000;
 const CROWD_CATEGORIES = ["Plenty of seats", "Limited seats", "Full"];
+const CROWD_VALUE_BY_LABEL = {
+  "Plenty of seats": 1,
+  "Limited seats": 2,
+  Full: 3,
+};
+
 function toMillis(timestamp) {
   if (!timestamp) return null;
 
@@ -53,6 +60,36 @@ function normalizeSubmittedBy(data) {
   return { uid, email };
 }
 
+function normalizeCrowdLevel(label) {
+  const normalizedLabel = String(label ?? "").trim();
+
+  if (
+    normalizedLabel === "Plenty of seats" ||
+    normalizedLabel === "Limited seats" ||
+    normalizedLabel === "Full"
+  ) {
+    return normalizedLabel;
+  }
+
+  if (normalizedLabel === "Plenty") return "Plenty of seats";
+  if (normalizedLabel === "Low") return "Plenty of seats";
+  if (normalizedLabel === "Medium") return "Limited seats";
+  if (normalizedLabel === "High") return "Full";
+
+  return "";
+}
+
+function getCrowdWeight(ageMs) {
+  const ageMinutes = ageMs / (60 * 1000);
+
+  if (ageMinutes < 0 || ageMinutes > 180) return 0;
+  if (ageMinutes <= 20) return 3;
+  if (ageMinutes <= 40) return 2.5;
+  if (ageMinutes <= 60) return 2;
+  if (ageMinutes <= 120) return 1;
+  return 0.5;
+}
+
 export function useSubmissions() {
   const submissions = ref([]);
   const submissionFlags = ref([]);
@@ -82,7 +119,7 @@ export function useSubmissions() {
               ? Number(data.rating)
               : null,
           comment: data.comment ?? "",
-          crowdLevel: data.crowdLevel ?? "",
+          crowdLevel: normalizeCrowdLevel(data.crowdLevel),
           createdAt: toMillis(data.createdAt),
           unlockUntil:
             data.unlockUntil !== undefined && data.unlockUntil !== null
@@ -136,7 +173,7 @@ export function useSubmissions() {
                 ? Number(data.rating)
                 : null,
               comment: data.comment ?? "",
-              crowdLevel: data.crowdLevel ?? "",
+              crowdLevel: normalizeCrowdLevel(data.crowdLevel),
               createdAt: toMillis(data.createdAt),
               unlockUntil:
                 data.unlockUntil !== undefined && data.unlockUntil !== null
@@ -236,6 +273,52 @@ export function useSubmissions() {
     return locationSubs.reduce((latest, current) =>
       (current.createdAt ?? 0) > (latest.createdAt ?? 0) ? current : latest
     );
+  }
+
+  function getRecentCrowdSubmissionsByLocation(locationId) {
+    const now = Date.now();
+
+    return getSubmissionsByLocation(locationId).filter((submission) => {
+      if (!submission.crowdLevel) return false;
+      if (submission.createdAt === null || submission.createdAt === undefined) {
+        return false;
+      }
+
+      return now - submission.createdAt <= CROWD_FRESHNESS_WINDOW_MS;
+    });
+  }
+
+  function getWeightedCrowdScore(locationId) {
+    const now = Date.now();
+    const crowdSubs = getRecentCrowdSubmissionsByLocation(locationId);
+
+    if (!crowdSubs.length) return null;
+
+    let weightedTotal = 0;
+    let totalWeight = 0;
+
+    crowdSubs.forEach((submission) => {
+      const crowdValue = CROWD_VALUE_BY_LABEL[submission.crowdLevel];
+      const weight = getCrowdWeight(now - submission.createdAt);
+
+      if (!crowdValue || !weight) return;
+
+      weightedTotal += crowdValue * weight;
+      totalWeight += weight;
+    });
+
+    if (!totalWeight) return null;
+
+    return weightedTotal / totalWeight;
+  }
+
+  function getDerivedCrowdStatus(locationId) {
+    const weightedScore = getWeightedCrowdScore(locationId);
+
+    if (weightedScore === null) return "Unknown";
+    if (weightedScore < 1.5) return "Plenty of seats";
+    if (weightedScore < 2.5) return "Limited seats";
+    return "Full";
   }
 
   function getLatestComment(locationId) {
@@ -396,7 +479,10 @@ export function useSubmissions() {
     isSubmissionInvalid,
     getSubmissionsByLocation,
     getRecentSubmissionsByLocation,
+    getRecentCrowdSubmissionsByLocation,
     getAverageRating,
+    getWeightedCrowdScore,
+    getDerivedCrowdStatus,
     getLatestSubmission,
     getLatestComment,
     lastUpdatedText,
