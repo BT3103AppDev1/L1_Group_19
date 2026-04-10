@@ -25,9 +25,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  totalCount: {
+    type: Number,
+    default: 0,
+  },
 });
 
-const emit = defineEmits(["flag-submission"]);
+const emit = defineEmits(["flag-submission", "load-more"]);
 
 const activeFlagSubmissionId = ref("");
 const reasonBySubmissionId = reactive({});
@@ -59,6 +63,10 @@ const filteredSubmissions = computed(() => {
   }
 
   return [];
+});
+
+const hasMoreSubmissions = computed(() => {
+  return props.totalCount > props.submissions.length;
 });
 
 function getFlagCount(submissionId) {
@@ -184,6 +192,15 @@ function submitFlag(submission) {
         </form>
       </li>
     </ul>
+
+    <button
+      v-if="hasMoreSubmissions"
+      type="button"
+      class="load-more-button"
+      @click="$emit('load-more')"
+    >
+      Load more {{ type === "noise" ? "comments" : "entries" }}
+    </button>
   </div>
 </template>
 
@@ -285,5 +302,28 @@ function submitFlag(submission) {
 .flag-actions {
   display: flex;
   gap: 8px;
+}
+
+.load-more-button {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1f4b7f;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.load-more-button:hover {
+  background: #f0f4fa;
+  border-color: #c7d5e8;
+}
+
+.load-more-button:active {
+  background: #e8eef8;
 }
 </style>

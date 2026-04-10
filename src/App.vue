@@ -92,6 +92,9 @@ const unlockUntil = computed(() =>
 const effectiveUnlockUntil = computed(() =>
   Math.max(unlockUntil.value, localUnlockUntil.value)
 );
+
+const noiseCommentsToShow = ref(5);
+const crowdCommentsToShow = ref(5);
 const now = ref(Date.now());
 let unlockTimerId = null;
 
@@ -161,8 +164,8 @@ const selectedLocationSummary = computed(() => {
   };
 });
 
-const noiseSubmissions = computed(() =>
-  (selectedLocationSummary.value?.submissions ?? [])
+const noiseSubmissions = computed(() => {
+  const filtered = (selectedLocationSummary.value?.submissions ?? [])
     .filter(
       (submission) =>
         submission.rating !== null &&
@@ -170,13 +173,35 @@ const noiseSubmissions = computed(() =>
         submission.comment &&
         submission.comment.trim().length > 0
     )
-    .slice(0, 5)
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return filtered.slice(0, noiseCommentsToShow.value);
+});
+
+const crowdSubmissions = computed(() => {
+  const filtered = (selectedLocationSummary.value?.submissions ?? [])
+    .filter(
+      (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
+    )
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return filtered.slice(0, crowdCommentsToShow.value);
+});
+
+const totalNoiseSubmissions = computed(() =>
+  (selectedLocationSummary.value?.submissions ?? [])
+    .filter(
+      (submission) =>
+        submission.rating !== null &&
+        submission.rating !== undefined &&
+        submission.comment &&
+        submission.comment.trim().length > 0
+    ).length
 );
 
-const crowdSubmissions = computed(() =>
-  (selectedLocationSummary.value?.submissions ?? []).filter(
-    (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
-  ).slice(0, 5)
+const totalCrowdSubmissions = computed(() =>
+  (selectedLocationSummary.value?.submissions ?? [])
+    .filter(
+      (submission) => submission.crowdLevel && submission.crowdLevel.length > 0
+    ).length
 );
 const noiseFlagCounts = computed(() =>
   Object.fromEntries(
@@ -306,6 +331,14 @@ async function handleFlagSubmission({
   }
 }
 
+function handleLoadMoreNoise() {
+  noiseCommentsToShow.value += 5;
+}
+
+function handleLoadMoreCrowd() {
+  crowdCommentsToShow.value += 5;
+}
+
 function handleRequestLocation() {
   requestLocation();
   startTrackingLocation();
@@ -334,6 +367,8 @@ function stopUnlockTimer() {
 watch(selectedLocation, () => {
   clearSuccessMessage();
   proximityError.value = "";
+  noiseCommentsToShow.value = 5;
+  crowdCommentsToShow.value = 5;
 });
 
 watch(
@@ -486,7 +521,9 @@ onBeforeUnmount(() => {
           type="noise"
           :flag-counts="noiseFlagCounts"
           :is-submitting-flag="isSubmittingFlag"
+          :total-count="totalNoiseSubmissions"
           @flag-submission="handleFlagSubmission"
+          @load-more="handleLoadMoreNoise"
         />
         <hr class="drawer-divider" />
 
@@ -512,6 +549,8 @@ onBeforeUnmount(() => {
           v-if="!isDataAccessLocked"
           :submissions="crowdSubmissions"
           type="crowd"
+          :total-count="totalCrowdSubmissions"
+          @load-more="handleLoadMoreCrowd"
         />
       </LocationDrawer>
     </main>
