@@ -8,6 +8,10 @@ defineProps({
     type: Number,
     default: null,
   },
+  averageCrowdRating: {
+    type: Number,
+    default: null,
+  },
   ratingLabelText: {
     type: String,
     required: true,
@@ -47,6 +51,13 @@ defineProps({
     <p class="drawer-row metric-row">
       <span class="label">Noise Level:</span>
       <span class="metric-value metric-level">{{ ratingLabelText }}</span>
+    </p>
+
+    <p class="drawer-row metric-row">
+      <span class="label">Average Crowd Rating:</span>
+      <span class="metric-value">
+        {{ averageCrowdRating === null ? "No recent data" : averageCrowdRating.toFixed(1) }}
+      </span>
     </p>
 
     <p class="drawer-row metric-row">

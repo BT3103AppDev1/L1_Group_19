@@ -55,6 +55,7 @@ const {
   getRecentSubmissionsByLocation,
   getDerivedCrowdStatus,
   getAverageRating,
+  getAverageCrowdRating,
   getLatestComment,
   lastUpdatedText,
   getUserUnlockUntil,
@@ -150,12 +151,14 @@ const selectedLocationSummary = computed(() => {
   const locationId = selectedLocation.value.id;
   const submissions = getRecentSubmissionsByLocation(locationId);
   const averageRating = getAverageRating(locationId);
+  const averageCrowdRating = getAverageCrowdRating(locationId);
 
   return {
     location: selectedLocation.value,
     locationId,
     submissions,
     averageRating,
+    averageCrowdRating,
     ratingLabel: ratingLabel(averageRating),
     crowdLabel: getDerivedCrowdStatus(locationId),
     submissionCount: submissions.length,
@@ -498,6 +501,7 @@ onBeforeUnmount(() => {
           v-if="!isDataAccessLocked && selectedLocationSummary"
           :location="selectedLocationSummary.location"
           :average-rating="selectedLocationSummary.averageRating"
+          :average-crowd-rating="selectedLocationSummary.averageCrowdRating"
           :rating-label-text="selectedLocationSummary.ratingLabel"
           :crowd-label-text="selectedLocationSummary.crowdLabel"
           :submission-count="selectedLocationSummary.submissionCount"

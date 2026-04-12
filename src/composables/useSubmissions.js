@@ -266,6 +266,17 @@ export function useSubmissions() {
     return total / locationSubs.length;
   }
 
+  function getAverageCrowdRating(locationId) {
+    const crowdValues = getRecentCrowdSubmissionsByLocation(locationId)
+      .map((submission) => CROWD_VALUE_BY_LABEL[submission.crowdLevel])
+      .filter((value) => value !== undefined && value !== null);
+
+    if (!crowdValues.length) return null;
+
+    const total = crowdValues.reduce((sum, value) => sum + value, 0);
+    return total / crowdValues.length;
+  }
+
   function getLatestSubmission(locationId) {
     const locationSubs = getRecentSubmissionsByLocation(locationId);
     if (!locationSubs.length) return null;
@@ -481,6 +492,7 @@ export function useSubmissions() {
     getRecentSubmissionsByLocation,
     getRecentCrowdSubmissionsByLocation,
     getAverageRating,
+    getAverageCrowdRating,
     getWeightedCrowdScore,
     getDerivedCrowdStatus,
     getLatestSubmission,
